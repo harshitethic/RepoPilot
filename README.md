@@ -144,7 +144,7 @@ Python 3.12 is recommended for a predictable backend setup.
 
 ## 1. Clone RepoPilot
 
-```powershell
+```bash
 git clone https://github.com/harshitethic/RepoPilot.git
 cd RepoPilot
 ```
@@ -192,7 +192,7 @@ python -m pip install --upgrade pip
 Install dependencies:
 
 ```powershell
-pip install -r backendequirements.txt
+pip install -r backend\requirements.txt
 ```
 
 Start FastAPI:
@@ -405,6 +405,7 @@ RepoPilot/
 │
 ├── frontend/
 │   ├── package.json
+│   ├── package-lock.json
 │   ├── vite.config.js
 │   │
 │   └── src/
@@ -418,6 +419,10 @@ RepoPilot/
 │   ├── code-search.png
 │   ├── architecture.png
 │   └── file-tree.png
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 │
 ├── .gitignore
 └── README.md
@@ -506,6 +511,32 @@ It is also easy to demonstrate in a viva:
 > **"Give me a GitHub repository and I can locally clone it, inspect it, search its code, analyze project health, and ask an open-source local LLM questions about its architecture."**
 
 That's a much better demonstration than a static AI chatbot.
+
+---
+
+# 🧪 Development checks
+
+The repository now includes GitHub Actions for basic regression checks on pushes and pull requests:
+
+- Backend dependency installation and Python bytecode compilation
+- Frontend dependency installation with the committed lockfile
+- Frontend production build
+
+Run the same frontend build locally with:
+
+```powershell
+cd frontend
+npm ci
+npm run build
+```
+
+For the backend, a quick syntax check is:
+
+```powershell
+python -m compileall -q backend
+```
+
+These checks are intentionally lightweight: they catch broken imports, syntax errors, dependency drift, and frontend build failures without executing cloned third-party repositories.
 
 ---
 
