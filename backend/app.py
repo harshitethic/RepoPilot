@@ -4,8 +4,10 @@ from pydantic import BaseModel,Field
 from services.github import clone_repo,safe_repo_path
 from services.analyzer import analyze,search_code,build_context
 from services.ollama import available,chat
+from api_upload import router as upload_router
 app=FastAPI(title="RepoPilot API")
 app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:5173","http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
+app.include_router(upload_router)
 class Analyze(BaseModel): url:str=Field(min_length=10,max_length=500)
 class RepoReq(BaseModel): repo_id:str
 class Ask(RepoReq): question:str=Field(min_length=3,max_length=1200)
