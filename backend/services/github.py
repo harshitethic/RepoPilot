@@ -1,12 +1,15 @@
 from pathlib import Path
 from urllib.parse import urlparse
-import re, shutil, subprocess, uuid
+import re, shutil, subprocess, uuid, zipfile
 
 BASE_DIR = Path(__file__).resolve().parents[1] / "repos"
 BASE_DIR.mkdir(exist_ok=True)
 ALLOWED_HOSTS = {"github.com", "www.github.com"}
 SKIP_DIRS = {".git","node_modules",".venv","venv","__pycache__","dist","build",".next",".nuxt","coverage",".idea",".vscode"}
 TEXT_EXTENSIONS = {".py",".js",".jsx",".ts",".tsx",".java",".go",".rs",".cpp",".c",".h",".hpp",".cs",".php",".rb",".swift",".kt",".kts",".sql",".html",".css",".scss",".sass",".less",".json",".yaml",".yml",".toml",".ini",".md",".txt",".xml",".sh",".ps1",".env.example"}
+MAX_ZIP_BYTES = 50 * 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
+MAX_ZIP_FILES = 5000
 
 def validate_github_url(url: str) -> str:
     p = urlparse(url.strip())
@@ -34,6 +37,40 @@ def clone_repo(url: str):
     if r.returncode:
         shutil.rmtree(dest, ignore_errors=True)
         raise RuntimeError((r.stderr or "Git clone failed.").strip()[-500:])
+    return repo_id, dest
+
+def extract_zip(upload_path: Path):
+    if upload_path.stat().st_size > MAX_ZIP_BYTES:
+        raise ValueError("ZIP is too large. Maximum upload size is 50 MB.")
+    repo_id = uuid.uuid4().hex[:12]
+    dest = BASE_DIR / repo_id
+    total = 0
+    try:
+        with zipfile.ZipFile(upload_path) as archive:
+            infos = [i for i in archive.infolist() if not i.is_dir()]
+            if len(infos) > MAX_ZIP_FILES:
+                raise ValueError("ZIP contains too many files. Maximum is 5,000 files.")
+            root = dest.resolve()
+            for info in infos:
+                member = Path(info.filename)
+                if member.is_absolute() or ".." in member.parts:
+                    raise ValueError("ZIP contains an unsafe file path.")
+                total += info.file_size
+                if total > MAX_UNCOMPRESSED_BYTES:
+                    raise ValueError("ZIP expands beyond the 200 MB limit.")
+            for info in infos:
+                target = (dest / Path(info.filename)).resolve()
+                if root not in target.parents:
+                    raise ValueError("ZIP contains an unsafe file path.")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(info) as source, target.open("wb") as out:
+                    shutil.copyfileobj(source, out, length=1024 * 1024)
+    except zipfile.BadZipFile:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise ValueError("Invalid ZIP archive.")
+    except Exception:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
     return repo_id, dest
 
 def iter_files(root: Path):
