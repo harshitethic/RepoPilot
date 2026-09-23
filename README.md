@@ -40,6 +40,7 @@ Developer Answer
 - 🔒 **Local-first AI**
 - 🚫 **No paid AI API**
 - 🛡️ **Does not execute cloned repository code**
+- 🧹 **Repository inventory, deletion, stale cleanup, and local capacity guard**
 - 🌙 **Dark mode**
 - 🎨 **Cartoonish / meme-ish student UI**
 
@@ -440,6 +441,9 @@ POST /api/analyze
 POST /api/search
 POST /api/ask
 POST /api/architecture
+GET  /api/repositories
+DELETE /api/repositories/{repo_id}
+POST /api/repositories/cleanup
 ```
 
 ### Health
@@ -481,6 +485,18 @@ POST /api/architecture
 ```
 
 Generates an architecture explanation using repository context.
+
+### Repository lifecycle
+
+RepoPilot now exposes local repository inventory and cleanup endpoints. The server refuses new clones/uploads once `REPOPILOT_MAX_REPOSITORIES` is reached (default: 100) until old repositories are removed.
+
+```text
+GET    /api/repositories
+DELETE /api/repositories/{repo_id}
+POST   /api/repositories/cleanup
+```
+
+Stale cleanup accepts `{"max_age_hours": 24}` with a bounded range of 1 hour through 30 days.
 
 ---
 

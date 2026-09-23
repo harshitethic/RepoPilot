@@ -1,7 +1,7 @@
 from fastapi import FastAPI,HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel,Field
-from services.github import clone_repo,safe_repo_path
+from services.github import clone_repo,safe_repo_path,list_repositories,delete_repository,cleanup_repositories
 from services.analyzer import analyze,search_code,build_context
 from services.ollama import available,chat
 from api_upload import router as upload_router
@@ -12,6 +12,7 @@ class Analyze(BaseModel): url:str=Field(min_length=10,max_length=500)
 class RepoReq(BaseModel): repo_id:str
 class Ask(RepoReq): question:str=Field(min_length=3,max_length=1200)
 class Search(RepoReq): query:str=Field(min_length=1,max_length=100)
+class Cleanup(BaseModel): max_age_hours:int=Field(default=24,ge=1,le=24*30)
 @app.get("/api/health")
 def health(): return {"ok":True,"ollama":available()}
 @app.post("/api/analyze")
@@ -38,3 +39,21 @@ def do_ask(x:Ask):
 def arch(x:Ask):
     try:return {"answer":ai(x.repo_id,"Explain the architecture, components, entry points and request/data flow.","architecture")}
     except Exception as e:raise HTTPException(500,str(e))
+
+@app.get("/api/repositories")
+def repositories():
+    rows=list_repositories()
+    return {"repositories":rows,"count":len(rows)}
+
+@app.delete("/api/repositories/{repo_id}")
+def remove_repository(repo_id:str):
+    try:
+        delete_repository(repo_id)
+        return {"repo_id":repo_id,"deleted":True}
+    except (ValueError,FileNotFoundError) as e:
+        raise HTTPException(404,str(e))
+
+@app.post("/api/repositories/cleanup")
+def cleanup(x:Cleanup):
+    deleted=cleanup_repositories(x.max_age_hours)
+    return {"deleted":deleted,"count":len(deleted),"max_age_hours":x.max_age_hours}

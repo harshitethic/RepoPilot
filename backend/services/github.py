@@ -1,6 +1,7 @@
 from pathlib import Path
 from urllib.parse import urlparse
-import re, shutil, subprocess, uuid, zipfile
+import os, re, shutil, subprocess, uuid, zipfile
+from datetime import datetime, timezone
 
 BASE_DIR = Path(__file__).resolve().parents[1] / "repos"
 BASE_DIR.mkdir(exist_ok=True)
@@ -10,6 +11,83 @@ TEXT_EXTENSIONS = {".py",".js",".jsx",".ts",".tsx",".java",".go",".rs",".cpp",".
 MAX_ZIP_BYTES = 50 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 MAX_ZIP_FILES = 5000
+MAX_REPOSITORIES = int(os.getenv("REPOPILOT_MAX_REPOSITORIES", "100"))
+
+def repository_ids():
+    if not BASE_DIR.exists():
+        return []
+    return sorted(
+        p.name
+        for p in BASE_DIR.iterdir()
+        if p.is_dir() and re.fullmatch(r"[a-f0-9]{12}", p.name)
+    )
+
+
+def ensure_repository_capacity():
+    count = len(repository_ids())
+    if count >= MAX_REPOSITORIES:
+        raise RuntimeError(
+            f"Repository capacity reached ({count}/{MAX_REPOSITORIES}). "
+            "Delete old repositories or run cleanup before analyzing another one."
+        )
+
+
+def repository_summary(repo_id: str):
+    path = safe_repo_path(repo_id)
+    total_bytes = 0
+    file_count = 0
+    for p in path.rglob("*"):
+        if not p.is_file():
+            continue
+        file_count += 1
+        try:
+            total_bytes += p.stat().st_size
+        except OSError:
+            pass
+    return {
+        "repo_id": repo_id,
+        "file_count": file_count,
+        "total_bytes": total_bytes,
+        "updated_at": datetime.fromtimestamp(
+            path.stat().st_mtime,
+            tz=timezone.utc,
+        ).isoformat(),
+    }
+
+
+def list_repositories():
+    rows = []
+    for repo_id in repository_ids():
+        try:
+            rows.append(repository_summary(repo_id))
+        except FileNotFoundError:
+            continue
+    rows.sort(key=lambda item: item["updated_at"], reverse=True)
+    return rows
+
+
+def delete_repository(repo_id: str):
+    path = safe_repo_path(repo_id)
+    shutil.rmtree(path)
+
+
+def cleanup_repositories(max_age_hours: int, now: datetime | None = None):
+    current = now or datetime.now(timezone.utc)
+    cutoff = current.timestamp() - max_age_hours * 60 * 60
+    deleted = []
+    for repo_id in repository_ids():
+        try:
+            path = safe_repo_path(repo_id)
+            modified = path.stat().st_mtime
+        except (FileNotFoundError, OSError):
+            continue
+        if modified >= cutoff:
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        if not path.exists():
+            deleted.append(repo_id)
+    return sorted(deleted)
+
 
 def validate_github_url(url: str) -> str:
     p = urlparse(url.strip())
@@ -25,6 +103,7 @@ def validate_github_url(url: str) -> str:
     return f"https://github.com/{owner}/{repo}.git"
 
 def clone_repo(url: str):
+    ensure_repository_capacity()
     safe = validate_github_url(url)
     repo_id = uuid.uuid4().hex[:12]
     dest = BASE_DIR / repo_id
@@ -40,6 +119,7 @@ def clone_repo(url: str):
     return repo_id, dest
 
 def extract_zip(upload_path: Path):
+    ensure_repository_capacity()
     if upload_path.stat().st_size > MAX_ZIP_BYTES:
         raise ValueError("ZIP is too large. Maximum upload size is 50 MB.")
     repo_id = uuid.uuid4().hex[:12]
