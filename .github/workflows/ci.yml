@@ -26,6 +26,10 @@ jobs:
       - name: Compile backend
         run: python -m compileall -q backend
 
+      - name: Run backend unit tests
+        working-directory: backend
+        run: python -m unittest discover -s tests -v
+
   frontend:
     runs-on: ubuntu-latest
     steps:
