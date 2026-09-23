@@ -73,16 +73,30 @@ def extract_zip(upload_path: Path):
         raise
     return repo_id, dest
 
+def _resolve_repo_file(root: Path, candidate: Path):
+    root = root.resolve()
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    if not resolved.is_file():
+        return None
+    return resolved
+
+
 def iter_files(root: Path):
+    root = root.resolve()
     for p in root.rglob("*"):
-        if not p.is_file(): continue
         rel = p.relative_to(root)
         if any(part in SKIP_DIRS for part in rel.parts): continue
-        try: size = p.stat().st_size
+        resolved = _resolve_repo_file(root, p)
+        if resolved is None: continue
+        try: size = resolved.stat().st_size
         except OSError: continue
         if size > 300_000: continue
         if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower() in {"dockerfile","makefile"}:
-            yield p
+            yield resolved
 
 def read_text(path: Path): return path.read_text(encoding="utf-8", errors="replace")
 
