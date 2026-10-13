@@ -3,10 +3,20 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
-from app import Analyze, Ask, Search, do_analyze, do_search, do_ask, arch
+from app import Analyze, Ask, Search, health, do_analyze, do_search, do_ask, arch
 
 
 class SafeApiErrorTests(unittest.TestCase):
+    def test_health_probe_failure_reports_degraded_ollama_without_trace(self):
+        with patch("app.available", side_effect=RuntimeError("PRIVATE_SYSTEM_PATH")), patch("app.logger"):
+            result = health()
+        self.assertEqual(result, {"ok": True, "ollama": False})
+        self.assertNotIn("PRIVATE_SYSTEM_PATH", str(result))
+
+    def test_health_probe_healthy_returns_true(self):
+        with patch("app.available", return_value=True):
+            self.assertEqual(health(), {"ok": True, "ollama": True})
+
     def test_import_error_does_not_reflect_private_paths(self):
         with patch("app.clone_repo", side_effect=RuntimeError(
             "PRIVATE_TOKEN at /home/admin/.aws/credentials"
