@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI,HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel,Field
@@ -5,6 +6,7 @@ from services.github import clone_repo,safe_repo_path,list_repositories,delete_r
 from services.analyzer import analyze,search_code,build_context
 from services.ollama import available,chat
 from api_upload import router as upload_router
+logger = logging.getLogger(__name__)
 app=FastAPI(title="RepoPilot API")
 app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:5173","http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
 app.include_router(upload_router)
@@ -18,14 +20,33 @@ class Cleanup(BaseModel):
 @app.get("/api/health")
 def health(): return {"ok":True,"ollama":available()}
 @app.post("/api/analyze")
-def do_analyze(x:Analyze):
+def do_analyze(x: Analyze):
     try:
-        rid,path=clone_repo(x.url); d=analyze(path); d.update(repo_id=rid,source_url=x.url); return d
-    except Exception as e: raise HTTPException(400,str(e))
+        repo_id, path = clone_repo(x.url)
+        result = analyze(path)
+        result.update(repo_id=repo_id, source_url=x.url)
+        return result
+    except ValueError as exc:
+        logger.info("Invalid repository import input: %s", type(exc).__name__)
+        raise HTTPException(400, "Invalid repository URL or import capacity reached") from exc
+    except Exception as exc:
+        logger.exception("Repository import or analysis failed")
+        raise HTTPException(500, "Could not import or analyze the repository") from exc
+
+
 @app.post("/api/search")
-def do_search(x:Search):
-    try:return {"results":search_code(safe_repo_path(x.repo_id),x.query)}
-    except Exception as e:raise HTTPException(400,str(e))
+def do_search(x: Search):
+    try:
+        return {"results": search_code(safe_repo_path(x.repo_id), x.query)}
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid repository ID or search query") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Repository not found") from exc
+    except Exception as exc:
+        logger.exception("Repository search failed")
+        raise HTTPException(500, "Repository search failed") from exc
+
+
 def ai(repo_id,question,mode):
     path=safe_repo_path(repo_id); context=build_context(path,question,10 if mode=="architecture" else 8,20000)
     prompt=f"""Analyze this repository. The user request is: {question}
@@ -33,14 +54,29 @@ Use only the code context below.
 {context}
 Give a concise developer-facing answer. Cite actual file paths. Do not invent files or behavior."""
     return chat(prompt)
+def _ai_answer(x: Ask, question: str, mode: str) -> dict[str, str]:
+    try:
+        return {"answer": ai(x.repo_id, question, mode)}
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid repository ID or question") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Repository not found") from exc
+    except Exception as exc:
+        logger.exception("Local AI request failed")
+        raise HTTPException(503, "Local AI service is unavailable") from exc
+
+
 @app.post("/api/ask")
-def do_ask(x:Ask):
-    try:return {"answer":ai(x.repo_id,x.question,"ask")}
-    except Exception as e:raise HTTPException(500,str(e))
+def do_ask(x: Ask):
+    return _ai_answer(x, x.question, "ask")
+
+
 @app.post("/api/architecture")
-def arch(x:Ask):
-    try:return {"answer":ai(x.repo_id,"Explain the architecture, components, entry points and request/data flow.","architecture")}
-    except Exception as e:raise HTTPException(500,str(e))
+def arch(x: Ask):
+    return _ai_answer(
+        x, "Explain the architecture, components, entry points and request/data flow.",
+        "architecture"
+    )
 
 
 @app.get("/api/repositories")
