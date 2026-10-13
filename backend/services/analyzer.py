@@ -7,7 +7,7 @@ def analyze(root):
     entries=[]; langs=Counter(); lines=0; bytes_=0
     for p in iter_files(root):
         rel=str(p.relative_to(root)).replace("\\","/")
-        text=read_text(p); n=text.count("\n")+(1 if text else 0)
+        text=read_text(p); n=len(text.splitlines())
         lines+=n; bytes_+=p.stat().st_size; lang=LANG.get(p.suffix.lower(),"Other"); langs[lang]+=1
         entries.append({"path":rel,"size":p.stat().st_size,"lines":n,"language":lang})
     paths={e["path"].lower() for e in entries}; names={Path(e["path"]).name.lower() for e in entries}
@@ -25,6 +25,8 @@ def analyze(root):
 
 def search_code(root,q,limit=50):
     q=q.lower().strip(); out=[]
+    if not q: return []
+    if not q: return []
     for p in iter_files(root):
         for i,line in enumerate(read_text(p).splitlines(),1):
             if q in line.lower():

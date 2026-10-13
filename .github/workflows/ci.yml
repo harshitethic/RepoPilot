@@ -26,6 +26,12 @@ jobs:
       - name: Compile backend
         run: python -m compileall -q backend
 
+      - name: Test repository import boundaries
+        run: PYTHONPATH=backend python -m unittest discover -s backend/tests -v
+
+      - name: Test repository import boundaries
+        run: PYTHONPATH=backend python -m unittest discover -s backend/tests -v
+
   frontend:
     runs-on: ubuntu-latest
     steps:
