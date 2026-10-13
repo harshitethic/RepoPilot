@@ -442,6 +442,25 @@ POST /api/ask
 POST /api/architecture
 ```
 
+### Local repository inventory and cleanup
+
+RepoPilot can list and delete its own imported repository copies:
+
+- GET /api/repositories — inventory (file count, size, update time)
+- DELETE /api/repositories/{repo_id} — delete one import
+- POST /api/repositories/cleanup — bounded stale-import cleanup
+
+Cleanup is a **dry run by default**. Send `{"max_age_hours":24}` to
+preview; send `{"max_age_hours":24,"dry_run":false}` to delete those
+imported copies. The retention range is 1–720 hours. No cleanup runs
+automatically. Imported repository count is capped by
+`REPOPILOT_MAX_REPOSITORIES` (default 100). Invalid IDs, symlinks,
+and paths outside RepoPilot's import directory are refused.
+
+**Deletion is irreversible.** Copy any modified repository contents
+elsewhere before cleanup. This is a local-only API with no authentication;
+do not expose it to the public Internet.
+
 ### Health
 
 ```text
