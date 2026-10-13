@@ -26,7 +26,6 @@ def analyze(root):
 def search_code(root,q,limit=50):
     q=q.lower().strip(); out=[]
     if not q: return []
-    if not q: return []
     for p in iter_files(root):
         for i,line in enumerate(read_text(p).splitlines(),1):
             if q in line.lower():

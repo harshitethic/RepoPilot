@@ -1,0 +1,3 @@
+# Reproducible HTTP-level ASGI smoke tests in GitHub Actions.
+-r requirements.txt
+httpx==0.28.1
