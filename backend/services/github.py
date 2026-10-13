@@ -16,10 +16,12 @@ def validate_github_url(url: str) -> str:
     if p.scheme not in {"http","https"} or p.hostname not in ALLOWED_HOSTS:
         raise ValueError("Only public github.com repository URLs are supported.")
     parts = p.path.strip("/").split("/")
-    if len(parts) < 2:
+    if len(parts) != 2:
         raise ValueError("Use https://github.com/owner/repository")
     owner, repo = parts[:2]
     repo = re.sub(r"\.git$", "", repo)
+    if owner in {".", ".."} or repo in {".", ".."}:
+        raise ValueError("Invalid GitHub repository URL.")
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", owner) or not re.fullmatch(r"[A-Za-z0-9_.-]+", repo):
         raise ValueError("Invalid GitHub repository URL.")
     return f"https://github.com/{owner}/{repo}.git"
@@ -74,14 +76,17 @@ def extract_zip(upload_path: Path):
     return repo_id, dest
 
 def iter_files(root: Path):
+    # Never follow a repository-controlled symbolic link outside its tree.
+    trusted_root = root.resolve()
     for p in root.rglob("*"):
-        if not p.is_file(): continue
+        if p.is_symlink() or not p.is_file(): continue
+        if trusted_root not in p.resolve().parents: continue
         rel = p.relative_to(root)
         if any(part in SKIP_DIRS for part in rel.parts): continue
         try: size = p.stat().st_size
         except OSError: continue
         if size > 300_000: continue
-        if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower() in {"dockerfile","makefile"}:
+        if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower() in {"dockerfile","makefile",".gitignore"}:
             yield p
 
 def read_text(path: Path): return path.read_text(encoding="utf-8", errors="replace")
@@ -89,5 +94,5 @@ def read_text(path: Path): return path.read_text(encoding="utf-8", errors="repla
 def safe_repo_path(repo_id: str):
     if not re.fullmatch(r"[a-f0-9]{12}", repo_id): raise ValueError("Invalid repository id.")
     path = (BASE_DIR / repo_id).resolve()
-    if BASE_DIR.resolve() not in path.parents or not path.exists(): raise FileNotFoundError("Repository not found.")
+    if BASE_DIR.resolve() not in path.parents or not path.is_dir(): raise FileNotFoundError("Repository not found.")
     return path
