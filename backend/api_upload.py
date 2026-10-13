@@ -1,13 +1,39 @@
 from pathlib import Path
 import tempfile
 import logging
-import tempfile
-import logging
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from services.github import extract_zip
 from services.analyzer import analyze
 
 router = APIRouter()
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+async def write_temp_upload(file: UploadFile) -> Path:
+    """Stream uploads into an OS-created temp file with a strict size cap."""
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix="repopilot-", suffix=".zip", delete=False
+        ) as staging:
+            path = Path(staging.name)
+            total = 0
+            while True:
+                chunk = await file.read(UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise ValueError("ZIP is too large. Maximum upload size is 50 MB.")
+                staging.write(chunk)
+        return path
+    except Exception:
+        if path is not None:
+            path.unlink(missing_ok=True)
+        raise
+
 
 @router.post("/api/upload")
 async def upload_repository(file: UploadFile = File(...)):
@@ -15,13 +41,7 @@ async def upload_repository(file: UploadFile = File(...)):
         raise HTTPException(400, "Upload a .zip repository archive.")
     temp = None
     try:
-        data = await file.read(50 * 1024 * 1024 + 1)
-        # Use an OS-created unique file to avoid filename collisions and symlink attacks.
-        with tempfile.NamedTemporaryFile(prefix="repopilot-", suffix=".zip", delete=False) as staging:
-            temp = Path(staging.name)
-            staging.write(data)
-        if len(data) > 50 * 1024 * 1024:
-            raise ValueError("ZIP is too large. Maximum upload size is 50 MB.")
+        temp = await write_temp_upload(file)
         repo_id, path = extract_zip(temp)
         result = analyze(path)
         result.update(repo_id=repo_id, source_url=f"ZIP: {file.filename}")
