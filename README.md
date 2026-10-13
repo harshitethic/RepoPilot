@@ -45,6 +45,14 @@ Developer Answer
 
 ---
 
+## Verified HTTP walkthrough
+
+Beyond screenshots, RepoPilot runs a [reproducible API smoke test](docs/http-smoke-test.md)
+in CI. It uploads and indexes a real ZIP fixture, searches source, exercises
+repository inventory and safe cleanup, and tests the model request path with a
+clearly identified deterministic stub. It requires **no API keys or running
+Ollama instance**. [Check the latest CI run](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml).
+
 # 🖼️ Screenshots
 
 ## Dashboard
