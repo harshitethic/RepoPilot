@@ -18,7 +18,14 @@ class Cleanup(BaseModel):
     max_age_hours:int=Field(default=24,ge=1,le=720)
     dry_run:bool=True
 @app.get("/api/health")
-def health(): return {"ok":True,"ollama":available()}
+def health():
+    # The API itself may be healthy even when optional local Ollama is offline.
+    try:
+        model_ready = bool(available())
+    except Exception:
+        logger.warning("Local AI availability probe failed")
+        model_ready = False
+    return {"ok": True, "ollama": model_ready}
 @app.post("/api/analyze")
 def do_analyze(x: Analyze):
     try:
