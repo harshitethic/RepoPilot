@@ -646,3 +646,9 @@ And most importantly:
 ## License
 
 MIT License.
+
+## Import security and deployment boundaries
+
+RepoPilot now accepts **credential-free HTTPS GitHub repository URLs only**, isolates Git subprocesses from host Git configuration overrides, and reserves import directories atomically to prevent random-ID collisions from deleting existing workspaces.
+
+Read the [GitHub import security model](docs/github-import-security.md) for the network-free regression suite and explicit limitations. RepoPilot remains a **local developer tool**; it is not a sandbox or an audited public multi-user service.
