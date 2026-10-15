@@ -1,4 +1,6 @@
 from pathlib import Path
+import stat
+import unicodedata
 from urllib.parse import urlparse
 import os, re, shutil, subprocess, uuid, zipfile
 from datetime import datetime, timezone
@@ -219,40 +221,102 @@ def clone_repo(url: str):
             shutil.rmtree(dest, ignore_errors=True)
 
 
+def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, tuple[str, ...]]]:
+    """Preflight a ZIP's paths without creating any files or directories.
+
+    Reject ambiguous paths on both case-sensitive and case-insensitive
+    filesystems, and refuse archive-defined symlink/special-file types.
+    """
+    infos = archive.infolist()
+    if len(infos) > MAX_ZIP_FILES:
+        raise ValueError("ZIP contains too many entries. Maximum is 5,000.")
+    files: set[str] = set()
+    directories: set[str] = set()
+    seen_entries: set[str] = set()
+    result: list[tuple[zipfile.ZipInfo, tuple[str, ...]]] = []
+    total = 0
+    reserved_windows = {"CON", "PRN", "AUX", "NUL", *[f"COM{i}" for i in range(1, 10)], *[f"LPT{i}" for i in range(1, 10)]}
+    for info in infos:
+        name = info.filename
+        if not name or len(name) > 4096 or name.startswith("/") or "\x00" in name or "\\" in name:
+            raise ValueError("ZIP contains an unsafe file path.")
+        raw = name[:-1] if info.is_dir() else name
+        parts = raw.split("/")
+        if not parts or len(parts) > 32 or any(
+            not part or part in {".", ".."} or len(part) > 255
+            or part[-1] in {".", " "}
+            or any(ord(char) < 32 or char in '<>:"|?*' for char in part)
+            or part.split(".")[0].upper() in reserved_windows
+            for part in parts
+        ):
+            raise ValueError("ZIP contains an unsafe file path.")
+        if info.flag_bits & 0x1:
+            raise ValueError("Encrypted ZIP members are not supported.")
+        if info.create_system == 3:
+            entry_type = stat.S_IFMT(info.external_attr >> 16)
+            if entry_type not in {0, stat.S_IFREG, stat.S_IFDIR}:
+                raise ValueError("ZIP contains an unsafe symlink or special file.")
+            if entry_type and (entry_type == stat.S_IFDIR) != info.is_dir():
+                raise ValueError("ZIP contains an unsafe file/directory type.")
+        keys = [
+            unicodedata.normalize("NFC", "/".join(parts[:index])).casefold()
+            for index in range(1, len(parts) + 1)
+        ]
+        key = keys[-1]
+        if key in seen_entries or any(prefix in files for prefix in keys[:-1]):
+            raise ValueError("ZIP contains duplicate or conflicting file paths.")
+        if info.is_dir():
+            if key in files:
+                raise ValueError("ZIP contains conflicting file/directory paths.")
+        else:
+            if key in files or key in directories:
+                raise ValueError("ZIP contains duplicate or conflicting file paths.")
+            total += info.file_size
+            if total > MAX_UNCOMPRESSED_BYTES:
+                raise ValueError("ZIP expands beyond the 200 MB limit.")
+            files.add(key)
+            result.append((info, tuple(parts)))
+        seen_entries.add(key)
+        directories.update(keys[:-1])
+        if info.is_dir():
+            directories.add(key)
+    return result
+
+
 def extract_zip(upload_path: Path):
+    """Extract a validated ZIP without overwriting existing import workspaces."""
     ensure_repository_capacity()
     if upload_path.stat().st_size > MAX_ZIP_BYTES:
         raise ValueError("ZIP is too large. Maximum upload size is 50 MB.")
-    repo_id = uuid.uuid4().hex[:12]
-    dest = BASE_DIR / repo_id
-    total = 0
+    dest: Path | None = None
+    success = False
     try:
         with zipfile.ZipFile(upload_path) as archive:
-            infos = [i for i in archive.infolist() if not i.is_dir()]
-            if len(infos) > MAX_ZIP_FILES:
-                raise ValueError("ZIP contains too many files. Maximum is 5,000 files.")
-            root = dest.resolve()
-            for info in infos:
-                member = Path(info.filename)
-                if member.is_absolute() or ".." in member.parts:
-                    raise ValueError("ZIP contains an unsafe file path.")
-                total += info.file_size
-                if total > MAX_UNCOMPRESSED_BYTES:
-                    raise ValueError("ZIP expands beyond the 200 MB limit.")
-            for info in infos:
-                target = (dest / Path(info.filename)).resolve()
-                if root not in target.parents:
-                    raise ValueError("ZIP contains an unsafe file path.")
+            members = _validated_zip_members(archive)
+            repo_id, dest = reserve_repository_directory()
+            total = 0
+            for info, parts in members:
+                target = dest.joinpath(*parts)
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with archive.open(info) as source, target.open("wb") as out:
-                    shutil.copyfileobj(source, out, length=1024 * 1024)
-    except zipfile.BadZipFile:
-        shutil.rmtree(dest, ignore_errors=True)
-        raise ValueError("Invalid ZIP archive.")
-    except Exception:
-        shutil.rmtree(dest, ignore_errors=True)
-        raise
-    return repo_id, dest
+                written = 0
+                # "xb" refuses overwrites even if another member/path was
+                # accidentally missed by the preflight collision detection.
+                with archive.open(info) as source, target.open("xb") as output:
+                    while chunk := source.read(64 * 1024):
+                        written += len(chunk)
+                        total += len(chunk)
+                        if written > info.file_size or total > MAX_UNCOMPRESSED_BYTES:
+                            raise ValueError("ZIP expands beyond the 200 MB limit.")
+                        output.write(chunk)
+        success = True
+        return repo_id, dest
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Invalid ZIP archive.") from exc
+    finally:
+        # Never remove a path that this invocation did not reserve.
+        if not success and dest is not None:
+            shutil.rmtree(dest, ignore_errors=True)
+
 
 def iter_files(root: Path):
     # Never follow a repository-controlled symbolic link outside its tree.

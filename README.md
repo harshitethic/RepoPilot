@@ -1,12 +1,12 @@
-# 🧠 RepoPilot — Local AI Codebase Engineer
+# RepoPilot — Local-First Repository Intelligence
 
-> **A cartoonish, student-friendly local AI developer tool built by [@harshitethic](https://github.com/harshitethic) for his college bhais ❤️**
+**Inspect unfamiliar codebases, search source, and ask questions against a local language model.**
 
-RepoPilot lets you paste a **public GitHub repository**, clone it locally, inspect its structure, search its source code, calculate transparent project-health signals, and ask a local AI engineer questions about how the codebase works.
+RepoPilot combines a FastAPI ingestion/indexing backend, a React interface, and optional Ollama inference. It accepts public GitHub repository URLs or ZIP files, produces an inspectable source tree, and answers questions using bounded repository context.
 
-**No OpenAI. No Gemini. No paid API keys.**
+**Architecture priorities:** fail-closed import validation, bounded ZIP extraction, collision-safe storage, reproducible tests and explicit local-only security boundaries.
 
-Everything important runs locally with **Git + FastAPI + React + Ollama**.
+No paid model API key is required. Ollama is optional for source indexing and search.
 
 ---
 
@@ -39,11 +39,22 @@ Developer Answer
 - 📊 **Language and code statistics**
 - 🔒 **Local-first AI**
 - 🚫 **No paid AI API**
-- 🛡️ **Does not execute cloned repository code**
+- 🛡️ **Does not intentionally run imported project scripts** (Git and ZIP parsing still execute inside the local backend; see the threat model)
 - 🌙 **Dark mode**
 - 🎨 **Cartoonish / meme-ish student UI**
 
 ---
+
+## Import trust boundaries
+
+The [ZIP ingestion security analysis](docs/zip-ingestion-security.md) explains
+validate-first extraction, 50 MiB archive/200 MiB output bounds, duplicate-path
+and symlink rejection, atomic private directory reservation, and rollback.
+The [GitHub import security analysis](docs/github-import-security.md) explains
+strict HTTPS URL validation, Git configuration isolation and remaining risks.
+
+**Scope:** a trusted local developer machine. RepoPilot is not an independently
+audited sandbox or production-ready unauthenticated Internet service.
 
 ## Verified HTTP walkthrough
 
