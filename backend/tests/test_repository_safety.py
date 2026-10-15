@@ -1,5 +1,8 @@
 """Network-free repository ingestion regression tests."""
+import os
+import subprocess
 import sys
+from types import SimpleNamespace
 import tempfile
 import unittest
 import zipfile
@@ -35,6 +38,100 @@ class RepositorySafetyTests(unittest.TestCase):
         ):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 github.validate_github_url(url)
+
+    def test_github_url_rejects_credentials_ports_queries_fragments_and_plain_http(self):
+        valid = {
+            "https://github.com/example/repo": "https://github.com/example/repo.git",
+            "https://www.github.com/Example/Repo.git": "https://github.com/Example/Repo.git",
+            "https://GITHUB.COM/example/repo": "https://github.com/example/repo.git",
+        }
+        for url, expected in valid.items():
+            with self.subTest(url=url):
+                self.assertEqual(github.validate_github_url(url), expected)
+        invalid = (
+            "http://github.com/example/repo",
+            "https://user:password@github.com/example/repo",
+            "https://user@github.com/example/repo",
+            "https://github.com:443/example/repo",
+            "https://github.com/example/repo?token=private",
+            "https://github.com/example/repo#revision",
+            "https://github.com/example/.git",
+            "https://github.com/-invalid/repo",
+            "https://github.com/example/repo;path=unsafe",
+            "https://github.com/example/repo/extra",
+            "https://github.com/example/repo%2fother",
+            "https://github.com:bad/example/repo",
+        )
+        for url in invalid:
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                github.validate_github_url(url)
+
+    def test_clone_ignores_hostile_git_config_and_disables_helpers(self):
+        with patch.dict(os.environ, {
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "url.file:///tmp/redirect.insteadOf",
+            "GIT_CONFIG_VALUE_0": "https://github.com/",
+            "GIT_ASKPASS": "/tmp/malicious-askpass",
+            "SSH_ASKPASS": "/tmp/malicious-askpass",
+            "LD_PRELOAD": "/tmp/malicious-preload",
+        }):
+            with patch.object(github.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as runner:
+                identifier, dest = github.clone_repo("https://github.com/Example/Project.git")
+        self.assertEqual(len(identifier), 12)
+        self.assertTrue(dest.is_dir())
+        self.assertEqual(dest.parent, self.repos)
+        args, kwargs = runner.call_args
+        self.assertIn("https://github.com/Example/Project.git", args[0])
+        self.assertEqual(args[0][0], "git")
+        self.assertIn("core.hooksPath=" + os.devnull, args[0])
+        self.assertIn("core.fsmonitor=false", args[0])
+        self.assertIn("credential.helper=", args[0])
+        self.assertIn("protocol.ext.allow=never", args[0])
+        self.assertFalse(kwargs["shell"])
+        self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
+        for prohibited in ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
+                           "SSH_ASKPASS", "LD_PRELOAD"):
+            self.assertNotIn(prohibited, kwargs["env"])
+        self.assertEqual(kwargs["env"]["GIT_CONFIG_NOSYSTEM"], "1")
+        self.assertEqual(kwargs["env"]["GIT_CONFIG_GLOBAL"], os.devnull)
+        self.assertEqual(kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+
+    def test_clone_id_collision_preserves_preexisting_import(self):
+        first = self.repos / ("a" * 12)
+        first.mkdir()
+        existing = first / "do-not-delete.txt"
+        existing.write_text("valuable")
+        with patch.object(github.uuid, "uuid4", side_effect=[
+            SimpleNamespace(hex="a" * 32),
+            SimpleNamespace(hex="b" * 32),
+        ]):
+            with patch.object(github.subprocess, "run", return_value=SimpleNamespace(returncode=0)):
+                identifier, dest = github.clone_repo("https://github.com/Example/Project")
+        self.assertEqual(identifier, "b" * 12)
+        self.assertTrue(dest.is_dir())
+        self.assertEqual(existing.read_text(), "valuable")
+
+    def test_failed_clone_removes_only_reserved_directory_without_leaking_stderr(self):
+        with patch.object(github.uuid, "uuid4", return_value=SimpleNamespace(hex="c" * 32)):
+            with patch.object(github.subprocess, "run", return_value=SimpleNamespace(
+                returncode=128, stderr=b"private-token-should-never-be-sent-to-client"
+            )):
+                with self.assertRaises(RuntimeError) as context:
+                    github.clone_repo("https://github.com/Example/Project")
+        self.assertNotIn("private-token", str(context.exception))
+        self.assertFalse((self.repos / ("c" * 12)).exists())
+
+    def test_clone_timeout_cleans_reservation_without_touching_existing_repos(self):
+        previous = self.repos / ("e" * 12)
+        previous.mkdir()
+        (previous / "keep.txt").write_text("unchanged")
+        with patch.object(github.uuid, "uuid4", return_value=SimpleNamespace(hex="d" * 32)):
+            with patch.object(github.subprocess, "run",
+                              side_effect=subprocess.TimeoutExpired(["git", "clone"], 90)):
+                with self.assertRaisesRegex(RuntimeError, "timed out"):
+                    github.clone_repo("https://github.com/Example/Project")
+        self.assertFalse((self.repos / ("d" * 12)).exists())
+        self.assertEqual((previous / "keep.txt").read_text(), "unchanged")
 
     def test_repo_ids_cannot_escape_import_directory(self):
         rid = "a" * 12
