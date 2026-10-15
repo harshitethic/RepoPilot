@@ -1,0 +1,128 @@
+name: ClonePeek independent consumer smoke
+
+on:
+  pull_request:
+    paths: [".github/workflows/clonepeek-consumer.yml"]
+  push:
+    branches: [main]
+    paths: [".github/workflows/clonepeek-consumer.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consumer:
+    name: RepoPilot + pinned public hook configs
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout consumer repository without retaining credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Audit RepoPilot as an actual independent consumer
+        id: repopilot
+        uses: harshitethic/clonepeek@65adee2b786e0c686b010f4f8f30b4e692759a95
+        with:
+          path: .
+          fail-on: none
+          format: json
+          output: ${{ runner.temp }}/clonepeek-repopilot.json
+
+      - name: Checkout official Cursor cookbook hook config at immutable revision
+        uses: actions/checkout@v4
+        with:
+          repository: cursor/cookbook
+          ref: 6733ef81a7dc3cb2a6c1f524ff586ebecc703204
+          path: public-samples/cursor-cookbook
+          persist-credentials: false
+          sparse-checkout: |
+            hooks/.cursor/hooks.json
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout YappChat VS Code tasks at immutable revision
+        uses: actions/checkout@v4
+        with:
+          repository: Cowboy-59/YappChat
+          ref: 6e704eb3208926d61e4d045a2a013818613b8ce4
+          path: public-samples/yappchat
+          persist-credentials: false
+          sparse-checkout: |
+            .vscode/tasks.json
+          sparse-checkout-cone-mode: false
+
+      - name: Scan external Cursor configuration as a separate consumer
+        id: cursor
+        uses: harshitethic/clonepeek@65adee2b786e0c686b010f4f8f30b4e692759a95
+        with:
+          path: public-samples/cursor-cookbook
+          fail-on: none
+          format: json
+          output: ${{ runner.temp }}/clonepeek-cursor.json
+
+      - name: Scan external VS Code configuration as a separate consumer
+        id: yappchat
+        uses: harshitethic/clonepeek@65adee2b786e0c686b010f4f8f30b4e692759a95
+        with:
+          path: public-samples/yappchat
+          fail-on: none
+          format: json
+          output: ${{ runner.temp }}/clonepeek-yappchat.json
+
+      - name: Verify pinned source blobs, command surfaces and Action outputs
+        shell: bash
+        env:
+          REPOPILOT_REPORT: ${{ runner.temp }}/clonepeek-repopilot.json
+          CURSOR_REPORT: ${{ runner.temp }}/clonepeek-cursor.json
+          YAPPCHAT_REPORT: ${{ runner.temp }}/clonepeek-yappchat.json
+          REPOPILOT_COUNT: ${{ steps.repopilot.outputs.findings }}
+          CURSOR_COUNT: ${{ steps.cursor.outputs.findings }}
+          YAPPCHAT_COUNT: ${{ steps.yappchat.outputs.findings }}
+          CURSOR_SCANNED: ${{ steps.cursor.outputs.scanned }}
+          YAPPCHAT_SCANNED: ${{ steps.yappchat.outputs.scanned }}
+          YAPPCHAT_HIGH: ${{ steps.yappchat.outputs.high }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def load_report(env_key):
+              report = json.loads(Path(os.environ[env_key]).read_text(encoding="utf-8"))
+              assert report["tool"] == "clonepeek"
+              assert report["version"] == "0.5.0"
+              return report
+
+          def git_blob_sha(data):
+              prefix = b"blob " + str(len(data)).encode() + b"\0"
+              return hashlib.sha1(prefix + data).hexdigest()
+
+          cursor_source = Path("public-samples/cursor-cookbook/hooks/.cursor/hooks.json")
+          yappchat_source = Path("public-samples/yappchat/.vscode/tasks.json")
+          assert git_blob_sha(cursor_source.read_bytes()) == "f9f5625c535d1bc84c782ce0c7caaa23fdca08b0"
+          assert git_blob_sha(yappchat_source.read_bytes()) == "98ed671fc22b14d5bfab780ffdc9f803d7c7ee35"
+
+          own = load_report("REPOPILOT_REPORT")
+          cursor = load_report("CURSOR_REPORT")
+          yappchat = load_report("YAPPCHAT_REPORT")
+
+          assert int(os.environ["REPOPILOT_COUNT"]) == len(own["findings"])
+          assert int(os.environ["CURSOR_COUNT"]) == 7 == len(cursor["findings"])
+          assert int(os.environ["YAPPCHAT_COUNT"]) == 2 == len(yappchat["findings"])
+          assert os.environ["CURSOR_SCANNED"] == "1"
+          assert os.environ["YAPPCHAT_SCANNED"] == "1"
+          assert os.environ["YAPPCHAT_HIGH"] == "2"
+          assert {f["rule"] for f in cursor["findings"]} == {"cursor-hook-command"}
+          assert {f["rule"] for f in yappchat["findings"]} == {"vscode-folder-open"}
+          assert {f["severity"] for f in cursor["findings"]} == {"medium"}
+          assert {f["severity"] for f in yappchat["findings"]} == {"high"}
+          assert {f["path"] for f in cursor["findings"]} == {"hooks/.cursor/hooks.json"}
+          assert {f["path"] for f in yappchat["findings"]} == {".vscode/tasks.json"}
+          assert all(f["line"] > 0 for f in cursor["findings"] + yappchat["findings"])
+          print("ClonePeek independent consumer smoke passed on two immutable public config snapshots")
+          print("Cursor: 7 medium execution surfaces; YappChat: 2 high folder-open tasks")
+          print("Both source configs were read only; no upstream scripts or hooks were executed")
+          PY
