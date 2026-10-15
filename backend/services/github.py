@@ -108,35 +108,116 @@ def cleanup_repositories(max_age_hours: int, *, dry_run: bool = True, now: datet
 
 
 def validate_github_url(url: str) -> str:
-    p = urlparse(url.strip())
-    if p.scheme not in {"http","https"} or p.hostname not in ALLOWED_HOSTS:
-        raise ValueError("Only public github.com repository URLs are supported.")
-    parts = p.path.strip("/").split("/")
+    """Canonicalize a public GitHub repo without credentials or URL extras.
+
+    Git takes its input from the canonical HTTPS URL only. In particular,
+    do not accidentally accept the local Git credential/port/query syntax.
+    """
+    try:
+        parsed = urlparse(url.strip())
+        # Accessing .port intentionally validates malformed port syntax too.
+        port = parsed.port
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("Invalid GitHub repository URL.") from exc
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname not in ALLOWED_HOSTS
+        or port is not None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.params
+    ):
+        raise ValueError("Only credential-free HTTPS github.com repository URLs are supported.")
+    parts = parsed.path.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError("Use https://github.com/owner/repository")
-    owner, repo = parts[:2]
-    repo = re.sub(r"\.git$", "", repo)
-    if owner in {".", ".."} or repo in {".", ".."}:
-        raise ValueError("Invalid GitHub repository URL.")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", owner) or not re.fullmatch(r"[A-Za-z0-9_.-]+", repo):
+    owner, repo = parts
+    repo = repo.removesuffix(".git")
+    if (
+        not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", owner)
+        or not 1 <= len(repo) <= 100
+        or repo in {".", ".."}
+        or not re.fullmatch(r"[A-Za-z0-9_.-]+", repo)
+    ):
         raise ValueError("Invalid GitHub repository URL.")
     return f"https://github.com/{owner}/{repo}.git"
+
+
+def safe_clone_environment() -> dict[str, str]:
+    """Never inherit a user's Git config overrides or interactive helpers.
+
+    Git can rewrite HTTPS remotes via insteadOf, or spawn configured
+    credential/filter helpers. A cloned repository is an untrusted input.
+    """
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.upper().startswith(("GIT_", "SSH_", "LD_", "DYLD_"))
+        and name.upper() not in {"PYTHONPATH", "PYTHONSTARTUP", "HOME"}
+    }
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_CONFIG_GLOBAL"] = os.devnull
+    environment["GIT_TERMINAL_PROMPT"] = "0"
+    environment["GIT_ASKPASS"] = os.devnull
+    return environment
+
+
+def reserve_repository_directory() -> tuple[str, Path]:
+    """Atomically reserve a random ID; never overwrite or delete collisions."""
+    for _ in range(20):
+        repo_id = uuid.uuid4().hex[:12]
+        dest = BASE_DIR / repo_id
+        try:
+            dest.mkdir(mode=0o700)
+            return repo_id, dest
+        except FileExistsError:
+            continue
+    raise RuntimeError("Unable to reserve a unique repository ID.")
+
 
 def clone_repo(url: str):
     safe = validate_github_url(url)
     ensure_repository_capacity()
-    repo_id = uuid.uuid4().hex[:12]
-    dest = BASE_DIR / repo_id
+    repo_id, dest = reserve_repository_directory()
+    argv = [
+        "git",
+        "-c", f"core.hooksPath={os.devnull}",
+        "-c", "core.fsmonitor=false",
+        "-c", "credential.helper=",
+        "-c", "protocol.file.allow=never",
+        "-c", "protocol.ext.allow=never",
+        "clone", "--depth", "1", "--quiet", "--no-local",
+        "--", safe, str(dest),
+    ]
+    success = False
     try:
-        r = subprocess.run(["git","clone","--depth","1","--quiet",safe,str(dest)], capture_output=True, text=True, timeout=90)
-    except FileNotFoundError:
-        raise RuntimeError("Git is not installed or not available on PATH.")
-    except subprocess.TimeoutExpired:
-        shutil.rmtree(dest, ignore_errors=True); raise RuntimeError("Git clone timed out.")
-    if r.returncode:
-        shutil.rmtree(dest, ignore_errors=True)
-        raise RuntimeError((r.stderr or "Git clone failed.").strip()[-500:])
-    return repo_id, dest
+        completed = subprocess.run(
+            argv,
+            cwd=BASE_DIR,
+            shell=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=90,
+            check=False,
+            env=safe_clone_environment(),
+        )
+        if completed.returncode:
+            raise RuntimeError("GitHub repository clone failed.")
+        success = True
+        return repo_id, dest
+    except FileNotFoundError as exc:
+        raise RuntimeError("Git is not installed or not available on PATH.") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("GitHub repository clone timed out.") from exc
+    finally:
+        # The only directory we ever remove is the one this invocation
+        # atomically reserved. Preexisting imports survive an ID collision.
+        if not success:
+            shutil.rmtree(dest, ignore_errors=True)
+
 
 def extract_zip(upload_path: Path):
     ensure_repository_capacity()
