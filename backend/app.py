@@ -1,5 +1,7 @@
+import ipaddress
 import logging
-from fastapi import FastAPI,HTTPException
+from fastapi import FastAPI,HTTPException,Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel,Field
 from services.github import clone_repo,safe_repo_path,list_repositories,delete_repository,cleanup_repositories
@@ -8,6 +10,31 @@ from services.ollama import available,chat
 from api_upload import router as upload_router
 logger = logging.getLogger(__name__)
 app=FastAPI(title="RepoPilot API")
+
+
+def is_loopback_client(host: str | None) -> bool:
+    """Require an actual local TCP peer, never a claimed proxy header."""
+    if not host:
+        return False
+    try:
+        address = ipaddress.ip_address(host)
+        # IPv4-mapped IPv6 may otherwise be treated differently by stacks.
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+            return address.ipv4_mapped.is_loopback
+        return address.is_loopback
+    except ValueError:
+        return False
+
+
+@app.middleware("http")
+async def local_only_by_default(request: Request, call_next):
+    # X-Forwarded-For and Host are untrusted, so only the actual ASGI peer
+    # address is used. A reverse proxy on the same machine appears local;
+    # operators must not expose one without authentication of their own.
+    host = request.client.host if request.client else None
+    if not is_loopback_client(host):
+        return JSONResponse(status_code=403, content={"detail": "Local API only"})
+    return await call_next(request)
 app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:5173","http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
 app.include_router(upload_router)
 class Analyze(BaseModel): url:str=Field(min_length=10,max_length=500)
