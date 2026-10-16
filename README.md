@@ -56,6 +56,16 @@ strict HTTPS URL validation, Git configuration isolation and remaining risks.
 **Scope:** a trusted local developer machine. RepoPilot is not an independently
 audited sandbox or production-ready unauthenticated Internet service.
 
+## Git child-process resource limits
+
+Public GitHub cloning now uses a [dedicated POSIX process supervisor
+with documented limits](docs/git-process-limits.md). It enforces a 90-second
+wall deadline, per-process CPU and per-file size limits, kills descendants
+on timeout and discards untrusted subprocess output. Linux additionally
+limits each process's virtual address space; **macOS does not enforce that
+memory cap**. This is not total-process-tree resource isolation or a
+production multi-tenant sandbox.
+
 ## Concurrent work admission
 
 Imports and AI requests have [cross-process, fail-fast admission

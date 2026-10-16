@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import os, re, shutil, subprocess, uuid, zipfile
 from datetime import datetime, timezone
 from filelock import FileLock
+from services.clone_process import run_guarded_git
 
 BASE_DIR = Path(__file__).resolve().parents[1] / "repos"
 BASE_DIR.mkdir(exist_ok=True)
@@ -287,16 +288,8 @@ def _clone_repo_locked(url: str):
     ]
     success = False
     try:
-        completed = subprocess.run(
-            argv,
-            cwd=BASE_DIR,
-            shell=False,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            timeout=90,
-            check=False,
-            env=safe_clone_environment(),
+        completed = run_guarded_git(
+            argv, cwd=BASE_DIR, timeout=90, env=safe_clone_environment()
         )
         if completed.returncode:
             raise RuntimeError("GitHub repository clone failed.")

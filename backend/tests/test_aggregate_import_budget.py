@@ -75,7 +75,7 @@ class AggregateImportBudgetTests(unittest.TestCase):
             return SimpleNamespace(returncode=0)
 
         with patch.dict(os.environ, {"REPOPILOT_MAX_STORAGE_BYTES": "20"}), patch.object(
-            github.subprocess, "run", side_effect=simulated_git_clone
+            github, "run_guarded_git", side_effect=simulated_git_clone
         ):
             with self.assertRaisesRegex(ValueError, "storage capacity reached after clone"):
                 github.clone_repo("https://github.com/example/repository")

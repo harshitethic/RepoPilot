@@ -75,7 +75,7 @@ class RepositorySafetyTests(unittest.TestCase):
             "SSH_ASKPASS": "/tmp/malicious-askpass",
             "LD_PRELOAD": "/tmp/malicious-preload",
         }):
-            with patch.object(github.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as runner:
+            with patch.object(github, "run_guarded_git", return_value=SimpleNamespace(returncode=0)) as runner:
                 identifier, dest = github.clone_repo("https://github.com/Example/Project.git")
         self.assertEqual(len(identifier), 12)
         self.assertTrue(dest.is_dir())
@@ -87,8 +87,8 @@ class RepositorySafetyTests(unittest.TestCase):
         self.assertIn("core.fsmonitor=false", args[0])
         self.assertIn("credential.helper=", args[0])
         self.assertIn("protocol.ext.allow=never", args[0])
-        self.assertFalse(kwargs["shell"])
-        self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
+        self.assertEqual(kwargs["timeout"], 90)
+        self.assertEqual(kwargs["cwd"], self.repos)
         for prohibited in ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
                            "SSH_ASKPASS", "LD_PRELOAD"):
             self.assertNotIn(prohibited, kwargs["env"])
@@ -105,7 +105,7 @@ class RepositorySafetyTests(unittest.TestCase):
             SimpleNamespace(hex="a" * 32),
             SimpleNamespace(hex="b" * 32),
         ]):
-            with patch.object(github.subprocess, "run", return_value=SimpleNamespace(returncode=0)):
+            with patch.object(github, "run_guarded_git", return_value=SimpleNamespace(returncode=0)):
                 identifier, dest = github.clone_repo("https://github.com/Example/Project")
         self.assertEqual(identifier, "b" * 12)
         self.assertTrue(dest.is_dir())
@@ -113,7 +113,7 @@ class RepositorySafetyTests(unittest.TestCase):
 
     def test_failed_clone_removes_only_reserved_directory_without_leaking_stderr(self):
         with patch.object(github.uuid, "uuid4", return_value=SimpleNamespace(hex="c" * 32)):
-            with patch.object(github.subprocess, "run", return_value=SimpleNamespace(
+            with patch.object(github, "run_guarded_git", return_value=SimpleNamespace(
                 returncode=128, stderr=b"private-token-should-never-be-sent-to-client"
             )):
                 with self.assertRaises(RuntimeError) as context:
@@ -126,7 +126,7 @@ class RepositorySafetyTests(unittest.TestCase):
         previous.mkdir()
         (previous / "keep.txt").write_text("unchanged")
         with patch.object(github.uuid, "uuid4", return_value=SimpleNamespace(hex="d" * 32)):
-            with patch.object(github.subprocess, "run",
+            with patch.object(github, "run_guarded_git",
                               side_effect=subprocess.TimeoutExpired(["git", "clone"], 90)):
                 with self.assertRaisesRegex(RuntimeError, "timed out"):
                     github.clone_repo("https://github.com/Example/Project")

@@ -38,6 +38,13 @@ parallel AI slots followed by a rejected third request, independence of import
 and AI pools, health responsiveness, invalid configuration, the loopback
 boundary, and a **separate process** holding a file lock and releasing it.
 
+## Clone subprocess safeguards
+
+Git cloning also runs under a [POSIX process supervisor](git-process-limits.md)
+with a wall deadline, per-process CPU/file limits and descendant cleanup.
+These controls apply only to Git child processes; they do not bound the
+total OS resources of the API, Ollama, ZIP extraction or network transport.
+
 ## What this does not enforce
 
 - These are **request concurrency** limits, not quotas for CPU seconds, peak
