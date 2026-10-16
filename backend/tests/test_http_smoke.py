@@ -148,7 +148,7 @@ class RealApiSmokeTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.available", side_effect=RuntimeError("PRIVATE_DIAGNOSTIC")), patch("app.logger"):
             response = await self.client.get("/api/health")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"ok": True, "ollama": False})
+        self.assertEqual(response.json(), {"ok": True, "ollama": {"online": False, "models": []}})
         self.assertNotIn("PRIVATE_DIAGNOSTIC", response.text)
 
 

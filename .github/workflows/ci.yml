@@ -52,6 +52,56 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Test health response compatibility
+        working-directory: frontend
+        run: npm test
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+
+  real-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Python for isolated real FastAPI backend
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Node for real React frontend
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend HTTP dependencies
+        run: python -m pip install -r backend/requirements-test.txt
+
+      - name: Install frontend and browser dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser test with real ZIP import, search and delayed response
+        working-directory: frontend
+        env:
+          CI: "true"
+          REPOPILOT_PYTHON: python
+        run: npm run test:e2e
+
+      - name: Upload browser failures for review
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-debug-artifacts
+          path: |
+            frontend/test-results
+            frontend/playwright-report
+          retention-days: 7

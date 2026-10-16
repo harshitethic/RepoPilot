@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ollamaAvailable } from '../src/health.js';
 
-test('reports online when the current FastAPI health endpoint returns true', () => {
-  assert.equal(ollamaAvailable({ ok: true, ollama: true }), true);
+test('reports online for a structured model status', () => {
+  assert.equal(ollamaAvailable({ ok: true, ollama: { online: true, models: ['model'] } }), true);
 });
 
 test('reports offline for false, absent or unavailable Ollama', () => {
+  assert.equal(ollamaAvailable({ ok: true, ollama: { online: false, models: [] } }), false);
   assert.equal(ollamaAvailable({ ok: true, ollama: false }), false);
   assert.equal(ollamaAvailable({ ollama: undefined }), false);
   assert.equal(ollamaAvailable(undefined), false);

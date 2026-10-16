@@ -17,10 +17,10 @@ credentials, private messages or paid model APIs.
    src/catalog.py among the returned search results.
 5. Browse the six-file tree and return to the repository overview.
 
-The header correctly reflects the *boolean* Ollama availability returned
-by GET /api/health after the frontend regression fix. Ollama was running
-locally during recording, but **no language-model answers were generated
-or represented in this demonstration**.
+The original capture predates the structured health response change;
+the current API returns `{"ok": true, "ollama": {"online": false, "models": []}}`
+when the local model is unavailable. No language-model answers were generated
+or represented in the original GIF.
 
 ## Reproduce locally (two terminals)
 
@@ -50,14 +50,45 @@ Code Search, search for search_catalog, and open File Tree. The source
 fixture and import behavior are also checked by the network-free
 backend/tests/test_browser_demo_fixture.py regression.
 
+## Independent browser isolation regression
+
+![Repo B after the delayed Repo A response returned](repository-isolation-after-delayed-answer.png)
+
+The second image comes from a successful headless Chrome regression run
+on a Mac. The test exercises the **actual FastAPI and React/Vite servers**,
+real ZIP multipart upload, extraction, indexing, and search, with two
+different synthetic repositories containing `alpha_marker` and
+`beta_marker`. It first confirms that Repo A search works, then begins a
+Repo A model-answer request against the real API. The browser harness
+captures the actual API response but delays delivering it to React. While
+that response is pending, the browser switches to Repo B and searches its
+source; the browser harness releases the Repo A response **after** Repo B
+is loaded. It asserts that neither Repo A's
+search results nor its returned AI answer appear in Repo B's UI.
+
+Only the final local-language-model response is a deterministic stub; the
+rest of the backend is real. This proves stale-result isolation for this
+scenario, not inference quality or comprehensive multi-tenant security.
+
+Reproduce with Python and Node dependencies installed and Google Chrome
+installed locally (CI installs Playwright Chromium instead):
+
+    cd frontend
+    npm ci
+    REPOPILOT_PYTHON=../.venv/bin/python npm run test:e2e
+
+The browser harness binds solely to loopback and creates a disposable
+temporary repository workspace. The test's browser-network interception is used solely to reproduce a
+late API response; it does not alter the normal application.
+
 ## Verification and limitations
 
 - The original Kali session passed landing, upload, search, tree and
   overview assertions against the actual localhost API.
 - The committed GIF captures the visible UI at the stated steps. It
   is **not** a high-frame-rate video or evidence of production traffic.
-- CI runs the generated fixture import/search test, frontend health-contract
-  tests, frontend production build and static security checks.
+- CI includes the generated fixture import/search test, structured health-contract
+  tests, frontend build, the real-browser isolation scenario, and CodeQL security analysis.
 - The demo does not prove GitHub login, remote inference quality, reliable
   multi-tenant operation, model safety or production-readiness.
 - RepoPilot is a trusted **local developer tool**. Do not bind its

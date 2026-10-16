@@ -1,9 +1,5 @@
-/**
- * Normalize the local backend's Ollama health contract.
- *
- * The current backend responds with { ok: true, ollama: boolean };
- * tolerate the original frontend's legacy { ollama: { online: boolean } }
- * shape without interpreting strings or truthy objects as service health.
+/** Determine availability from the actual structured API response.
+ * Boolean support is retained for compatibility with older local versions.
  */
 export function ollamaAvailable(health) {
   return health?.ollama === true || health?.ollama?.online === true;
