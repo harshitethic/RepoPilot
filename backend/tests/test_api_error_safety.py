@@ -10,12 +10,30 @@ class SafeApiErrorTests(unittest.TestCase):
     def test_health_probe_failure_reports_degraded_ollama_without_trace(self):
         with patch("app.available", side_effect=RuntimeError("PRIVATE_SYSTEM_PATH")), patch("app.logger"):
             result = health()
-        self.assertEqual(result, {"ok": True, "ollama": False})
+        self.assertEqual(result, {"ok": True, "ollama": {"online": False, "models": []}})
         self.assertNotIn("PRIVATE_SYSTEM_PATH", str(result))
 
-    def test_health_probe_healthy_returns_true(self):
-        with patch("app.available", return_value=True):
-            self.assertEqual(health(), {"ok": True, "ollama": True})
+    def test_health_preserves_online_and_offline_model_status(self):
+        for status in (
+            {"online": True, "models": ["local-model"], "selected": "local-model"},
+            {"online": False, "models": [], "selected": "local-model"},
+        ):
+            with self.subTest(status=status), patch("app.available", return_value=status):
+                self.assertEqual(health(), {"ok": True, "ollama": status})
+
+    def test_health_fails_closed_on_invalid_truthy_status(self):
+        with patch("app.available", return_value={"unexpected": "truthy"}), patch("app.logger"):
+            self.assertEqual(health(), {"ok": True, "ollama": {"online": False, "models": []}})
+
+    def test_health_does_not_reflect_internal_probe_diagnostics(self):
+        with patch("app.available", return_value={
+            "online": False, "models": [], "selected": "local-model",
+            "error": "SECRET_PASSWORD at /home/private/.token",
+        }):
+            result = health()
+        self.assertEqual(result["ollama"]["online"], False)
+        self.assertNotIn("SECRET_PASSWORD", str(result))
+        self.assertNotIn("/home/private", str(result))
 
     def test_import_error_does_not_reflect_private_paths(self):
         with patch("app.clone_repo", side_effect=RuntimeError(

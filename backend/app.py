@@ -48,11 +48,20 @@ class Cleanup(BaseModel):
 def health():
     # The API itself may be healthy even when optional local Ollama is offline.
     try:
-        model_ready = bool(available())
+        response = available()
+        if not isinstance(response, dict) or type(response.get("online")) is not bool:
+            logger.warning("Invalid local AI availability response")
+            model_status = {"online": False, "models": []}
+        else:
+            # Report structured health without reflecting raw exception text,
+            # URLs, or internal diagnostics from local model probes.
+            model_status = {"online": response["online"], "models": response.get("models", [])}
+            if isinstance(response.get("selected"), str):
+                model_status["selected"] = response["selected"]
     except Exception:
         logger.warning("Local AI availability probe failed")
-        model_ready = False
-    return {"ok": True, "ollama": model_ready}
+        model_status = {"online": False, "models": []}
+    return {"ok": True, "ollama": model_status}
 @app.post("/api/analyze")
 def do_analyze(x: Analyze):
     try:
