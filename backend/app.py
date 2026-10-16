@@ -4,7 +4,7 @@ from fastapi import FastAPI,HTTPException,Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel,Field
-from services.github import clone_repo,safe_repo_path,list_repositories,delete_repository,cleanup_repositories
+from services.github import clone_repo,safe_repo_path,list_repositories,delete_repository,cleanup_repositories,rollback_import
 from services.analyzer import analyze,search_code,build_context
 from services.ollama import available,chat
 from api_upload import router as upload_router
@@ -64,17 +64,29 @@ def health():
     return {"ok": True, "ollama": model_status}
 @app.post("/api/analyze")
 def do_analyze(x: Analyze):
+    repo_id = None
+    path = None
+    completed = False
     try:
         repo_id, path = clone_repo(x.url)
         result = analyze(path)
         result.update(repo_id=repo_id, source_url=x.url)
+        completed = True
         return result
     except ValueError as exc:
         logger.info("Invalid repository import input: %s", type(exc).__name__)
+        if repo_id is not None:
+            raise HTTPException(500, "Could not analyze the imported repository") from exc
         raise HTTPException(400, "Invalid repository URL or import capacity reached") from exc
     except Exception as exc:
         logger.exception("Repository import or analysis failed")
         raise HTTPException(500, "Could not import or analyze the repository") from exc
+    finally:
+        if repo_id is not None and path is not None and not completed:
+            try:
+                rollback_import(repo_id, path)
+            except Exception:
+                logger.exception("Unable to roll back failed repository analysis")
 
 
 @app.post("/api/search")

@@ -29,6 +29,14 @@ Windows PowerShell: activate `.venv\Scripts\Activate.ps1` and set
 6. Exercise browser CORS preflight validation, invalid ZIP response handling
    and degraded health reporting when the model is unavailable.
 
+The regression suite also checks failure recovery **after** a successful
+import but **before** a successful HTTP response. Failed ZIP/Git analysis
+must delete only its own newly reserved workspace, preserve older imports,
+avoid leaking private exception details, and clear temporary upload files.
+The async ZIP endpoint offloads synchronous extraction and analysis to worker
+threads. A real ASGI test verifies that a deliberately slow ZIP extraction
+does not stall concurrent health requests.
+
 All temporary repositories are created in an isolated test directory and
 removed after each test. The demo does **not** clone from GitHub, execute the
 imported source code, require a model download, or claim to benchmark an LLM.
