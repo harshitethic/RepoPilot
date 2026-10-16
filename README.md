@@ -56,6 +56,16 @@ strict HTTPS URL validation, Git configuration isolation and remaining risks.
 **Scope:** a trusted local developer machine. RepoPilot is not an independently
 audited sandbox or production-ready unauthenticated Internet service.
 
+## Failure recovery
+
+RepoPilot discards newly imported ZIP/Git workspaces when subsequent indexing
+or response preparation fails, without deleting previously retained imports.
+Synchronous ZIP extraction and analysis run outside the async API event loop.
+The [real HTTP failure-recovery tests](backend/tests/test_import_failure_recovery.py)
+exercise cleanup, error sanitization and health-request responsiveness. This
+does not imply request-body admission limits before multipart parsing or full
+protection against disk, network and CPU exhaustion.
+
 ## Verified HTTP walkthrough
 
 Beyond screenshots, RepoPilot runs a [reproducible API smoke test](docs/http-smoke-test.md)

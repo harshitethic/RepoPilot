@@ -151,6 +151,23 @@ def _delete_repository_locked(repo_id: str) -> None:
     shutil.rmtree(path)
 
 
+def rollback_import(repo_id: str, expected_path: Path) -> None:
+    """Discard only this request's successfully reserved, uncommitted import.
+
+    Verify both the ID and exact returned workspace before removal. The
+    import lock serializes this cleanup with admission and explicit deletion.
+    """
+    with import_lock():
+        path = safe_repo_path(repo_id)
+        if (
+            expected_path.is_symlink()
+            or expected_path.name != repo_id
+            or path.resolve() != expected_path.resolve()
+        ):
+            raise ValueError("Refusing to roll back an unrelated repository.")
+        shutil.rmtree(path)
+
+
 def cleanup_repositories(max_age_hours: int, *, dry_run: bool = True, now: datetime | None = None) -> dict[str, list[str]]:
     with import_lock():
         return _cleanup_repositories_locked(max_age_hours, dry_run=dry_run, now=now)
