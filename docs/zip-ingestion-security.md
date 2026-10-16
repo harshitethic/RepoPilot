@@ -23,7 +23,10 @@ execute project scripts or treat included files as instructions.
    against both member metadata and the 200 MiB total, not only ZIP headers.
    Open each output in exclusive creation mode, so even an unexpected duplicate
    cannot silently overwrite a previous output.
-8. On any archive error or I/O failure, remove **only the directory reserved
+8. Under a cross-process import lock, enforce the remaining [aggregate storage
+   budget](import-storage-budget.md) against the ZIP's declared total before
+   reserving space, and recheck persisted bytes after extraction.
+9. On any archive error or I/O failure, remove **only the directory reserved
    by the current attempt**. A failed import never removes earlier workspaces.
 
 These guarantees are about local ZIP ingestion and filesystem paths, **not**

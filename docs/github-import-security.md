@@ -24,7 +24,7 @@ A 12-hex-character import directory is **reserved atomically** before Git execut
 - RepoPilot is a local developer tool. **It is not authenticated, multi-tenant or ready for untrusted public hosting.**
 - HTTPS does not verify repository contents. Imported source may contain prompt injections intended to mislead a local LLM; model output is untrusted analysis.
 - Git and the TLS stack still execute with backend privileges. This is environment hardening, **not a process sandbox**.
-- Git clone has a 90-second timeout but lacks comprehensive transfer size quotas or isolated worker budgets. Large imports can exhaust disk or IO.
+- Git clone has a 90-second timeout and its **persisted output** is subject to the [shared storage budget](import-storage-budget.md). A clone can still consume excessive **transient disk, bandwidth or IO** before its final size is measured and rolled back. There is no hard peak-transfer quota or isolated worker budget.
 - Existing local imports need independent review; hardening future Git clones is not retrospective sanitization.
 - The local Ollama integration has additional trust boundaries requiring review before Internet exposure.
 

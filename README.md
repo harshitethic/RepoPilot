@@ -473,8 +473,15 @@ Cleanup is a **dry run by default**. Send `{"max_age_hours":24}` to
 preview; send `{"max_age_hours":24,"dry_run":false}` to delete those
 imported copies. The retention range is 1–720 hours. No cleanup runs
 automatically. Imported repository count is capped by
-`REPOPILOT_MAX_REPOSITORIES` (default 100). Invalid IDs, symlinks,
-and paths outside RepoPilot's import directory are refused.
+REPOPILOT_MAX_REPOSITORIES (default 100). A second persistent
+budget, REPOPILOT_MAX_STORAGE_BYTES, defaults to 2 GiB of logical file
+sizes across imported repositories. Import admission, clone completion,
+deletion and cleanup are serialized across local API processes. ZIP members
+are checked before extraction; a Git clone exceeding the remaining budget
+is rolled back after the clone completes. Because Git fetches into the
+temporary import directory first, this is **not a hard peak-disk or network
+transfer limit**. [Details and reproduction](docs/import-storage-budget.md).
+Invalid IDs, symlinks, and paths outside RepoPilot's import directory are refused.
 
 **Deletion is irreversible.** Copy any modified repository contents
 elsewhere before cleanup. This is a local-only API with no authentication;
