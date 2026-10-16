@@ -10,6 +10,12 @@ RepoPilot imports untrusted repositories. The application should never execute i
 - Use a random temporary ZIP file per upload, preventing concurrent requests from overwriting each other.
 - Skip symlinks, Git internals, dependencies and oversized source files while indexing. A malicious Git symlink cannot direct the indexer outside the imported tree.
 - Avoid publishing raw ZIP-analysis server exceptions to clients.
+- Enforce a default 2 GiB cumulative **persistent** import budget, not only per-ZIP
+  limits and repository-count limits. A cross-process admission lock prevents
+  two workers from admitting the same remaining storage/count budget.
+- Reject ZIPs whose declared extracted file sizes exceed free capacity before
+  reserving space; if a completed Git clone crosses the quota, roll back only
+  its newly reserved directory. See [storage quota](import-storage-budget.md).
 - Include repository-ingestion regression checks in CI.
 
 ## Remaining deployment work

@@ -10,3 +10,4 @@ repos/
 
 frontend/test-results/
 frontend/playwright-report/
+backend/.repos.import.lock

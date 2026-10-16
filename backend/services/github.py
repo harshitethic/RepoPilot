@@ -4,6 +4,7 @@ import unicodedata
 from urllib.parse import urlparse
 import os, re, shutil, subprocess, uuid, zipfile
 from datetime import datetime, timezone
+from filelock import FileLock
 
 BASE_DIR = Path(__file__).resolve().parents[1] / "repos"
 BASE_DIR.mkdir(exist_ok=True)
@@ -26,6 +27,51 @@ def configured_repository_limit() -> int:
     return limit
 
 
+def configured_storage_limit() -> int:
+    """Logical on-disk import budget, including cloned .git metadata."""
+    raw = os.getenv("REPOPILOT_MAX_STORAGE_BYTES", str(2 * 1024**3))
+    try:
+        limit = int(raw)
+    except ValueError as exc:
+        raise ValueError("REPOPILOT_MAX_STORAGE_BYTES must be an integer") from exc
+    if not 1 <= limit <= 1024**4:
+        raise ValueError("REPOPILOT_MAX_STORAGE_BYTES must be between 1 byte and 1 TiB")
+    return limit
+
+
+def import_lock() -> FileLock:
+    """Serialize admission and completion across threads and API processes.
+
+    Lock lives beside, not inside, the repository store. This permits tests
+    and read-only enumeration to ignore the lock file. It must not be removed
+    while services are using this storage directory.
+    """
+    return FileLock(str(BASE_DIR.parent / f".{BASE_DIR.name}.import.lock"), timeout=120)
+
+
+def directory_bytes(path: Path) -> int:
+    """Fail closed on unreadable files and never traverse symlink targets."""
+    root = path.resolve()
+    total = 0
+    try:
+        for item in path.rglob("*"):
+            if item.is_symlink() or not item.is_file():
+                continue
+            if not item.resolve().is_relative_to(root):
+                raise ValueError("Repository contains a file outside its storage directory.")
+            total += item.stat().st_size
+    except OSError as exc:
+        raise ValueError("Unable to inspect repository storage usage.") from exc
+    return total
+
+
+def stored_repository_bytes() -> int:
+    try:
+        return sum(directory_bytes(safe_repo_path(repo_id)) for repo_id in repository_ids())
+    except OSError as exc:
+        raise ValueError("Unable to inspect repository storage usage.") from exc
+
+
 def repository_ids() -> list[str]:
     """List direct non-symlink repository imports only."""
     root = BASE_DIR.resolve()
@@ -40,13 +86,21 @@ def repository_ids() -> list[str]:
     return sorted(result)
 
 
-def ensure_repository_capacity() -> None:
+def ensure_repository_capacity(*, planned_bytes: int = 0) -> None:
+    """Call with import_lock held before reserving a new workspace."""
     count = len(repository_ids())
     limit = configured_repository_limit()
     if count >= limit:
         raise ValueError(
             f"Repository capacity reached ({count}/{limit}). "
             "Delete an old import or preview cleanup before adding another repository."
+        )
+    maximum = configured_storage_limit()
+    used = stored_repository_bytes()
+    if used + max(planned_bytes, 1) > maximum:
+        raise ValueError(
+            "Repository storage capacity reached. "
+            "Delete an old import or raise REPOPILOT_MAX_STORAGE_BYTES."
         )
 
 
@@ -73,6 +127,11 @@ def repository_summary(repo_id: str) -> dict:
 
 
 def list_repositories() -> list[dict]:
+    with import_lock():
+        return _list_repositories_locked()
+
+
+def _list_repositories_locked() -> list[dict]:
     output = []
     for repo_id in repository_ids():
         try:
@@ -83,11 +142,21 @@ def list_repositories() -> list[dict]:
 
 
 def delete_repository(repo_id: str) -> None:
+    with import_lock():
+        _delete_repository_locked(repo_id)
+
+
+def _delete_repository_locked(repo_id: str) -> None:
     path = safe_repo_path(repo_id)
     shutil.rmtree(path)
 
 
 def cleanup_repositories(max_age_hours: int, *, dry_run: bool = True, now: datetime | None = None) -> dict[str, list[str]]:
+    with import_lock():
+        return _cleanup_repositories_locked(max_age_hours, dry_run=dry_run, now=now)
+
+
+def _cleanup_repositories_locked(max_age_hours: int, *, dry_run: bool = True, now: datetime | None = None) -> dict[str, list[str]]:
     if not 1 <= max_age_hours <= 720:
         raise ValueError("max_age_hours must be between 1 and 720")
     current = now or datetime.now(timezone.utc)
@@ -100,7 +169,7 @@ def cleanup_repositories(max_age_hours: int, *, dry_run: bool = True, now: datet
                 continue
             result["candidates"].append(repo_id)
             if not dry_run:
-                delete_repository(repo_id)
+                _delete_repository_locked(repo_id)
                 result["deleted"].append(repo_id)
         except (OSError, FileNotFoundError, ValueError):
             continue
@@ -180,6 +249,12 @@ def reserve_repository_directory() -> tuple[str, Path]:
 
 
 def clone_repo(url: str):
+    """Serialize admission and clone completion to enforce persistent quotas."""
+    with import_lock():
+        return _clone_repo_locked(url)
+
+
+def _clone_repo_locked(url: str):
     safe = validate_github_url(url)
     ensure_repository_capacity()
     repo_id, dest = reserve_repository_directory()
@@ -208,6 +283,10 @@ def clone_repo(url: str):
         )
         if completed.returncode:
             raise RuntimeError("GitHub repository clone failed.")
+        # Git's fetched size is unknown in advance. Reject/roll back the new
+        # workspace if the resulting persistent store exceeds the budget.
+        if stored_repository_bytes() > configured_storage_limit():
+            raise ValueError("Repository storage capacity reached after clone.")
         success = True
         return repo_id, dest
     except FileNotFoundError as exc:
@@ -284,8 +363,13 @@ def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipIn
 
 
 def extract_zip(upload_path: Path):
+    """Serialize admission and extraction to enforce persistent quotas."""
+    with import_lock():
+        return _extract_zip_locked(upload_path)
+
+
+def _extract_zip_locked(upload_path: Path):
     """Extract a validated ZIP without overwriting existing import workspaces."""
-    ensure_repository_capacity()
     if upload_path.stat().st_size > MAX_ZIP_BYTES:
         raise ValueError("ZIP is too large. Maximum upload size is 50 MB.")
     dest: Path | None = None
@@ -293,6 +377,7 @@ def extract_zip(upload_path: Path):
     try:
         with zipfile.ZipFile(upload_path) as archive:
             members = _validated_zip_members(archive)
+            ensure_repository_capacity(planned_bytes=sum(info.file_size for info, _ in members))
             repo_id, dest = reserve_repository_directory()
             total = 0
             for info, parts in members:
@@ -308,6 +393,8 @@ def extract_zip(upload_path: Path):
                         if written > info.file_size or total > MAX_UNCOMPRESSED_BYTES:
                             raise ValueError("ZIP expands beyond the 200 MB limit.")
                         output.write(chunk)
+        if stored_repository_bytes() > configured_storage_limit():
+            raise ValueError("Repository storage capacity reached after ZIP extraction.")
         success = True
         return repo_id, dest
     except zipfile.BadZipFile as exc:
