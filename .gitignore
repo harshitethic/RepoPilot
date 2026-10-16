@@ -11,3 +11,5 @@ repos/
 frontend/test-results/
 frontend/playwright-report/
 backend/.repos.import.lock
+
+backend/.repos.work-*.lock

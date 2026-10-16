@@ -18,6 +18,7 @@ Local development through `http://127.0.0.1` or `http://localhost` continues to 
 - The [ASGI body admission layer](request-body-admission.md) bounds request
   bodies before multipart parsing, but server buffers, concurrent requests and
   temporary disk usage require further deployment-level resource limits.
+- Import and AI requests now have [file-lock-backed concurrency admission](concurrent-work-admission.md) across workers sharing a filesystem. These are not CPU/memory budgets or user authorization.
 - Git cloning and ZIP extraction still require resource budgeting and external threat review.
 
 ## Test it without external services

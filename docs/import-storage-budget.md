@@ -43,6 +43,12 @@ capacity reclaimed after deletion, preservation of pre-existing files when a
 simulated Git clone exceeds budget, and thread/process races admitting at
 most one import when only one slot remains.
 
+## Concurrent work admission
+
+Active imports and AI calls are also subject to [cross-process request
+admission](concurrent-work-admission.md). This limits simultaneous admitted
+requests, not the peak disk/network/CPU consumption of a single operation.
+
 ## Important limitations
 
 **A Git clone can exceed the remaining quota temporarily** during download,
