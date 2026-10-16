@@ -43,5 +43,9 @@ imported source code, require a model download, or claim to benchmark an LLM.
 Live Ollama answer quality and remote GitHub connectivity need additional
 end-to-end verification on a configured machine.
 
+Independent [request admission regressions](request-body-admission.md)
+verify the HTTP size boundary before parsing, while preserving the real ZIP
+upload, indexing and search path demonstrated here.
+
 These checks run automatically on every PR and main branch push via
 [GitHub Actions](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml).

@@ -15,6 +15,9 @@ Local development through `http://127.0.0.1` or `http://localhost` continues to 
 - Deployment should bind the API to `127.0.0.1`, not `0.0.0.0`, as a separate network-layer defense. The middleware is defense in depth, not a substitute for the bind address/firewall.
 - Proxy middleware or ASGI servers that rewrite `scope.client` using forwarded headers must be configured carefully. Untrusted proxy headers can compromise this safeguard before the request reaches it.
 - Local Ollama prompts may include source content. Do not send private source to providers you have not explicitly approved.
+- The [ASGI body admission layer](request-body-admission.md) bounds request
+  bodies before multipart parsing, but server buffers, concurrent requests and
+  temporary disk usage require further deployment-level resource limits.
 - Git cloning and ZIP extraction still require resource budgeting and external threat review.
 
 ## Test it without external services

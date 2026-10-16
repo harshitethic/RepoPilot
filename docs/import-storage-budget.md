@@ -51,8 +51,10 @@ peak-storage, CPU or network budget. Upload staging files outside the import
 directory are not included in persistent import totals. A malicious or buggy
 client can still saturate temporary storage or local resources through
 concurrent requests. Synchronous ZIP extraction runs in a worker thread
-so it does not hold the async HTTP event loop, but worker capacity and
-pre-parser multipart-body sizes are **not** hard limited by this change. This change is **not** a production-grade filesystem
+so it does not hold the async HTTP event loop. Multipart requests now have
+[early ASGI body admission](request-body-admission.md), but this does not
+bound concurrent connections, reverse-proxy/server buffering, or worker-level
+resource consumption. This change is **not** a production-grade filesystem
 quota, authentication, or process sandbox.
 
 Before deploying to untrusted users, add storage-level quotas, per-client

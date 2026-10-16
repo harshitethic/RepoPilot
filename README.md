@@ -56,6 +56,15 @@ strict HTTPS URL validation, Git configuration isolation and remaining risks.
 **Scope:** a trusted local developer machine. RepoPilot is not an independently
 audited sandbox or production-ready unauthenticated Internet service.
 
+## Early request-body admission
+
+Incoming HTTP ZIP uploads are bounded **before multipart parsing** by
+[ASGI request-body admission](docs/request-body-admission.md): a 50 MiB file
+limit with 64 KiB framing allowance, streaming byte-count checks even without
+reliable Content-Length, and a disk-backed spool with a 1 MiB in-memory
+threshold. Other JSON API request bodies are capped at 64 KiB. This is not
+a peak-memory, CPU, global concurrency, or production multi-tenant quota.
+
 ## Failure recovery
 
 RepoPilot discards newly imported ZIP/Git workspaces when subsequent indexing
@@ -63,8 +72,8 @@ or response preparation fails, without deleting previously retained imports.
 Synchronous ZIP extraction and analysis run outside the async API event loop.
 The [real HTTP failure-recovery tests](backend/tests/test_import_failure_recovery.py)
 exercise cleanup, error sanitization and health-request responsiveness. This
-does not imply request-body admission limits before multipart parsing or full
-protection against disk, network and CPU exhaustion.
+does not imply comprehensive protection against disk, network or CPU
+exhaustion; request-body admission has its own bounded but limited safeguards.
 
 ## Verified HTTP walkthrough
 
