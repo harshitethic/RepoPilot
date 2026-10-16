@@ -56,6 +56,15 @@ strict HTTPS URL validation, Git configuration isolation and remaining risks.
 **Scope:** a trusted local developer machine. RepoPilot is not an independently
 audited sandbox or production-ready unauthenticated Internet service.
 
+## Concurrent work admission
+
+Imports and AI requests have [cross-process, fail-fast admission
+limits](docs/concurrent-work-admission.md): one import and two AI calls by
+default, configurable independently. Saturated requests receive HTTP 503
+with Retry-After rather than waiting and accumulating multipart staging
+files. These are **active-request limits**, not CPU, memory, network or
+worker-level isolation.
+
 ## Early request-body admission
 
 Incoming HTTP ZIP uploads are bounded **before multipart parsing** by

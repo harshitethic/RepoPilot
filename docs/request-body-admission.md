@@ -52,6 +52,13 @@ malformed headers, actual chunked multipart parsing, spool rollovers and
 cleanup, JSON payload caps, and the local-only access policy. No paid service,
 real user repository, or network connection is required.
 
+## Cross-process concurrency
+
+A separate [concurrent-work admission layer](concurrent-work-admission.md)
+rejects excess ZIP/Git imports before this multipart spool is opened and
+bounds concurrently admitted AI requests. It does not replace server-level
+connection limits or worker isolation.
+
 ## Remaining work for public deployment
 
 Do not expose RepoPilot as a public, multi-user API. Use an authenticating

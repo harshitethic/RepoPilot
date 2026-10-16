@@ -9,11 +9,14 @@ from services.analyzer import analyze,search_code,build_context
 from services.ollama import available,chat
 from api_upload import router as upload_router
 from request_limits import RequestBodyLimitMiddleware
+from work_admission import WorkAdmissionMiddleware
 logger = logging.getLogger(__name__)
 app=FastAPI(title="RepoPilot API")
 # Insert first so the existing local-peer authorization stays outside this
 # limiter. Approved uploads are bounded before the multipart parser runs.
 app.add_middleware(RequestBodyLimitMiddleware)
+# Reject excessive work before the request-body spool allocates disk space.
+app.add_middleware(WorkAdmissionMiddleware)
 
 
 def is_loopback_client(host: str | None) -> bool:
