@@ -43,6 +43,13 @@ capacity reclaimed after deletion, preservation of pre-existing files when a
 simulated Git clone exceeds budget, and thread/process races admitting at
 most one import when only one slot remains.
 
+## Clone child-process safeguards
+
+The clone subprocess now additionally has [POSIX resource limits and
+process-group supervision](git-process-limits.md), including termination
+of descendants after timeout. These do not replace filesystem quotas
+or enforce a cumulative process-tree CPU or resident-memory budget.
+
 ## Concurrent work admission
 
 Active imports and AI calls are also subject to [cross-process request
