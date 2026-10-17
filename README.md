@@ -1,714 +1,132 @@
-# RepoPilot — Local-First Repository Intelligence
+# RepoPilot
 
-**Inspect unfamiliar codebases, search source, and ask questions against a local language model.**
+**Explore unfamiliar codebases locally. Import a repository, browse files, search real source lines, and optionally ask a local AI model.**
 
-RepoPilot combines a FastAPI ingestion/indexing backend, a React interface, and optional Ollama inference. It accepts public GitHub repository URLs or ZIP files, produces an inspectable source tree, and answers questions using bounded repository context.
+[![Python and browser CI](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/harshitethic/RepoPilot/actions/workflows/codeql.yml/badge.svg)](https://github.com/harshitethic/RepoPilot/actions/workflows/codeql.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Architecture priorities:** fail-closed import validation, bounded ZIP extraction, collision-safe storage, reproducible tests and explicit local-only security boundaries.
+Built with **FastAPI, React, Vite, Git and optional Ollama**. RepoPilot runs on a trusted local workstation: you do not need a paid API key, or any model at all to import ZIPs and search source.
 
-No paid model API key is required. Ollama is optional for source indexing and search.
+![Verified browser walkthrough](docs/RepoPilot-live-verified-walkthrough.gif)
 
----
+The browser walkthrough uses a **real FastAPI/Vite app** and controlled ZIP repositories. Its delayed AI response comes from a **test fixture**, not a production LLM. [Test design and screenshots](docs/browser-demo.md).
 
-## ✨ What RepoPilot does
+## What you can do
 
-```text
-GitHub Repository
-       ↓
-   Git Clone
-       ↓
- Source Indexer
-   ↙    ↓     ↘
-Search  Health  File Tree
-       ↓
-Relevant Code Context
-       ↓
-Ollama + Local LLM
-       ↓
-Developer Answer
-```
+- Upload a ZIP **or** clone a public HTTPS GitHub repository on supported POSIX systems.
+- Browse source trees, search indexed code with file/line references, and inspect language statistics.
+- View a transparent, **heuristic** repository-health summary. It is not a security score.
+- Optionally ask a local Ollama model about a source file or the overall architecture.
+- Switch between projects without leaking stale search or AI responses from another repository.
 
-### Main features
+| Dashboard | Source search |
+| --- | --- |
+| ![RepoPilot dashboard](screenshots/dashboard.png) | ![RepoPilot code search](screenshots/code-search.png) |
 
-- 🔗 **GitHub repository cloning**
-- 🌳 **Interactive file tree**
-- 🔎 **Real source-code search**
-- 🧠 **Ask AI about the codebase**
-- 🏗️ **Architecture explanation**
-- ❤️ **Repository health score**
-- 📊 **Language and code statistics**
-- 🔒 **Local-first AI**
-- 🚫 **No paid AI API**
-- 🛡️ **Does not intentionally run imported project scripts** (Git and ZIP parsing still execute inside the local backend; see the threat model)
-- 🌙 **Dark mode**
-- 🎨 **Cartoonish / meme-ish student UI**
+**Scope:** a trusted, loopback-only developer workstation. This is not an authenticated multi-user service or an independently audited untrusted-code sandbox.
 
----
+## Quick start
 
-## Import trust boundaries
+See the [cross-platform first-run guide](docs/first-run.md) for detailed steps and troubleshooting.
 
-The [ZIP ingestion security analysis](docs/zip-ingestion-security.md) explains
-validate-first extraction, 50 MiB archive/200 MiB output bounds, duplicate-path
-and symlink rejection, atomic private directory reservation, and rollback.
-The [GitHub import security analysis](docs/github-import-security.md) explains
-strict HTTPS URL validation, Git configuration isolation and remaining risks.
+**macOS/Linux**, two terminals, Python 3.12 and Node.js 20 recommended:
 
-**Scope:** a trusted local developer machine. RepoPilot is not an independently
-audited sandbox or production-ready unauthenticated Internet service.
+~~~bash
+git clone https://github.com/harshitethic/RepoPilot.git
+cd RepoPilot
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r backend/requirements.txt
+cd backend
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
+~~~
 
-## Git child-process resource limits
+In a **second terminal** from the checkout root:
 
-Public GitHub cloning now uses a [dedicated POSIX process supervisor
-with documented limits](docs/git-process-limits.md). It enforces a 90-second
-wall deadline, per-process CPU and per-file size limits, kills descendants
-on timeout and discards untrusted subprocess output. Linux additionally
-limits each process's virtual address space; **macOS does not enforce that
-memory cap**. This is not total-process-tree resource isolation or a
-production multi-tenant sandbox.
+~~~bash
+cd frontend
+npm ci
+npm run dev
+~~~
 
-## Concurrent work admission
+Open **http://localhost:5173**. ZIP import, file-tree browsing and search work **without Ollama**.
 
-Imports and AI requests have [cross-process, fail-fast admission
-limits](docs/concurrent-work-admission.md): one import and two AI calls by
-default, configurable independently. Saturated requests receive HTTP 503
-with Retry-After rather than waiting and accumulating multipart staging
-files. These are **active-request limits**, not CPU, memory, network or
-worker-level isolation.
+**Windows PowerShell**, ZIP uploads and search (backend GitHub cloning is intentionally disabled on Windows until equivalent subprocess supervision exists):
 
-## Early request-body admission
+~~~powershell
+git clone https://github.com/harshitethic/RepoPilot.git
+cd RepoPilot
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r backend\requirements.txt
+cd backend
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
+~~~
 
-Incoming HTTP ZIP uploads are bounded **before multipart parsing** by
-[ASGI request-body admission](docs/request-body-admission.md): a 50 MiB file
-limit with 64 KiB framing allowance, streaming byte-count checks even without
-reliable Content-Length, and a disk-backed spool with a 1 MiB in-memory
-threshold. Other JSON API request bodies are capped at 64 KiB. This is not
-a peak-memory, CPU, global concurrency, or production multi-tenant quota.
+In another PowerShell terminal from the checkout root: change to **frontend**, run **npm ci** followed by **npm run dev**, and open **http://localhost:5173**.
 
-## Failure recovery
+### Optional local AI
 
-RepoPilot discards newly imported ZIP/Git workspaces when subsequent indexing
-or response preparation fails, without deleting previously retained imports.
-Synchronous ZIP extraction and analysis run outside the async API event loop.
-The [real HTTP failure-recovery tests](backend/tests/test_import_failure_recovery.py)
-exercise cleanup, error sanitization and health-request responsiveness. This
-does not imply comprehensive protection against disk, network or CPU
-exhaustion; request-body admission has its own bounded but limited safeguards.
+Install [Ollama](https://ollama.com/) and download a model:
 
-## Verified HTTP walkthrough
+~~~bash
+ollama pull llama3.2:1b
+~~~
 
-Beyond screenshots, RepoPilot runs a [reproducible API smoke test](docs/http-smoke-test.md)
-in CI. It uploads and indexes a real ZIP fixture, searches source, exercises
-repository inventory and safe cleanup, and tests the model request path with a
-clearly identified deterministic stub. It requires **no API keys or running
-Ollama instance**. [Check the latest CI run](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml).
+The backend defaults to **llama3.2:1b** at **http://127.0.0.1:11434**; set the **OLLAMA_MODEL** and/or **OLLAMA_URL** environment variables before starting the backend to change these values. Without a running Ollama instance, the AI endpoints report unavailable instead of inventing responses.
 
-# 🖼️ Screenshots
+### Repeatable demo without a model
 
-## Dashboard
+The real HTTP smoke test uses disposable ZIP fixtures and synthetic answers:
 
-![RepoPilot Dashboard](screenshots/dashboard.png)
+~~~bash
+python -m pip install -r backend/requirements-test.txt
+PYTHONPATH=backend python -m unittest discover -s backend/tests -p test_http_smoke.py -v
+~~~
 
-## Repository Analysis
-
-![Repository Analysis](screenshots/repository-analysis.png)
-
-## Ask AI
-
-![Ask AI](screenshots/ask-ai.png)
-
-## Code Search
-
-![Code Search](screenshots/code-search.png)
+Windows PowerShell equivalents and what the demo does **not** verify are in the [first-run guide](docs/first-run.md).
 
 ## Architecture
 
-![Architecture](screenshots/architecture.png)
-
-## File Tree
-
-![File Tree](screenshots/file-tree.png)
-
----
-
-# 🤖 Local AI
-
-RepoPilot uses **Ollama** instead of a paid cloud AI API.
-
-Recommended starter model:
-
-```text
-llama3.2:1b
-```
-
-Install it:
-
-```powershell
-ollama pull llama3.2:1b
-```
-
-Run it:
-
-```powershell
-ollama run llama3.2:1b
-```
-
-You can also change the model through the `OLLAMA_MODEL` environment variable.
-
-For example:
-
-```powershell
-$env:OLLAMA_MODEL="llama3.2:3b"
-```
-
-A larger model can provide better explanations if your machine has enough RAM.
-
----
-
-# 🛠️ Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | React |
-| Build tool | Vite |
-| Backend | FastAPI |
-| Language | Python |
-| Local AI | Ollama |
-| LLM | Llama 3.2 |
-| Git operations | Git CLI |
-| HTTP | REST API |
-| Styling | Custom CSS |
-| Icons | Lucide React |
-
----
-
-# 💻 Requirements
-
-Recommended:
-
-- Windows / macOS / Linux
-- Python **3.12**
-- Node.js **18+**
-- Git
-- Ollama
-- 8 GB RAM recommended
-- Internet connection for cloning public GitHub repositories
-
-Python 3.12 is recommended for a predictable backend setup.
-
----
-
-# 🚀 Installation
-
-## 1. Clone RepoPilot
-
-```bash
-git clone https://github.com/harshitethic/RepoPilot.git
-cd RepoPilot
-```
-
----
-
-# 🧠 2. Install Ollama
-
-Install Ollama, then:
-
-```powershell
-ollama pull llama3.2:1b
-```
-
-Test it:
-
-```powershell
-ollama run llama3.2:1b
-```
-
-Keep Ollama running.
-
----
-
-# 🐍 3. Backend
-
-Create a Python environment:
-
-```powershell
-py -3.12 -m venv .venv
-```
-
-Activate it:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Upgrade pip:
-
-```powershell
-python -m pip install --upgrade pip
-```
-
-Install dependencies:
-
-```powershell
-pip install -r backend\requirements.txt
-```
-
-Start FastAPI:
-
-```powershell
-cd backend
-python -m uvicorn app:app --host 127.0.0.1 --port 8000
-```
-
-You should see:
-
-```text
-Uvicorn running on http://127.0.0.1:8000
-```
-
-Keep this terminal open.
-
----
-
-# 🌐 4. Frontend
-
-Open another terminal:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:5173
-```
-
----
-
-# 🧩 Recommended 3-terminal setup
-
-### Terminal 1 — Ollama
-
-```powershell
-ollama run llama3.2:1b
-```
-
-### Terminal 2 — Backend
-
-```powershell
-.venv\Scripts\Activate.ps1
-cd backend
-python -m uvicorn app:app --host 127.0.0.1 --port 8000
-```
-
-### Terminal 3 — Frontend
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Then visit:
-
-```text
-http://localhost:5173
-```
-
----
-
-# 🧪 Try it
-
-Paste a public GitHub repository such as:
-
-```text
-https://github.com/fastapi/fastapi
-```
-
-Then click:
-
-**Analyze repository**
-
-After indexing, try:
-
-### Ask AI
-
-```text
-Where is the main application entry point?
-```
-
-```text
-How does the API request flow work?
-```
-
-```text
-Where is authentication handled?
-```
-
-```text
-Where is the database connection created?
-```
-
-### Code Search
-
-Search for:
-
-```text
-router
-```
-
-or:
-
-```text
-authentication
-```
-
-or:
-
-```text
-FastAPI
-```
-
-### Architecture
-
-Click:
-
-**Explain architecture**
-
-RepoPilot will send relevant repository context to the local Ollama model and generate an explanation.
-
----
-
-# ❤️ Repository Health
-
-RepoPilot intentionally uses a **transparent heuristic** instead of pretending an AI-generated number is an objective engineering metric.
-
-It checks signals such as:
-
-- README
-- Tests
-- `.gitignore`
-- Package/dependency manifest
-- GitHub Actions / CI
-- Docker configuration
-- Source files
-- Project size
-
-For example:
-
-```text
-Repository Health
-
-60 / 100
-
-✓ README
-✓ Package / Manifest
-✗ Tests
-⚠ .gitignore
-✗ CI / CD Workflow
-✗ Docker Support
-```
-
-The score is **not a security audit**.
-
-It is simply a quick project-quality signal.
-
----
-
-# 🔒 Security & privacy
-
-RepoPilot is deliberately conservative.
-
-### It does:
-
-- Clone public GitHub repositories
-- Read source/documentation files
-- Search source code
-- Send selected code context to your **local** Ollama server
-
-### It does NOT:
-
-- Execute cloned repository code
-- Run `npm install` inside the cloned repository
-- Run arbitrary repository scripts
-- Require OpenAI/Gemini API keys
-- Upload your repository to a cloud AI service
-
-The local clone directory is ignored by Git:
-
-```text
-backend/repos/
-```
-
----
-
-# 📁 Project Structure
-
-```text
-RepoPilot/
-│
-├── backend/
-│   ├── app.py
-│   ├── requirements.txt
-│   │
-│   ├── repos/
-│   │
-│   └── services/
-│       ├── analyzer.py
-│       ├── github.py
-│       └── ollama.py
-│
-├── frontend/
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── vite.config.js
-│   │
-│   └── src/
-│       ├── main.jsx
-│       └── styles.css
-│
-├── screenshots/
-│   ├── dashboard.png
-│   ├── repository-analysis.png
-│   ├── ask-ai.png
-│   ├── code-search.png
-│   ├── architecture.png
-│   └── file-tree.png
-│
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-│
-├── .gitignore
-└── README.md
-```
-
----
-
-# 🔌 API
-
-The FastAPI backend exposes:
-
-```text
-GET  /api/health
-POST /api/analyze
-POST /api/search
-POST /api/ask
-POST /api/architecture
-```
-
-### Local repository inventory and cleanup
-
-RepoPilot can list and delete its own imported repository copies:
-
-- GET /api/repositories — inventory (file count, size, update time)
-- DELETE /api/repositories/{repo_id} — delete one import
-- POST /api/repositories/cleanup — bounded stale-import cleanup
-
-Cleanup is a **dry run by default**. Send `{"max_age_hours":24}` to
-preview; send `{"max_age_hours":24,"dry_run":false}` to delete those
-imported copies. The retention range is 1–720 hours. No cleanup runs
-automatically. Imported repository count is capped by
-REPOPILOT_MAX_REPOSITORIES (default 100). A second persistent
-budget, REPOPILOT_MAX_STORAGE_BYTES, defaults to 2 GiB of logical file
-sizes across imported repositories. Import admission, clone completion,
-deletion and cleanup are serialized across local API processes. ZIP members
-are checked before extraction; a Git clone exceeding the remaining budget
-is rolled back after the clone completes. Because Git fetches into the
-temporary import directory first, this is **not a hard peak-disk or network
-transfer limit**. [Details and reproduction](docs/import-storage-budget.md).
-Invalid IDs, symlinks, and paths outside RepoPilot's import directory are refused.
-
-**Deletion is irreversible.** Copy any modified repository contents
-elsewhere before cleanup. This is a local-only API with no authentication;
-do not expose it to the public Internet.
-
-### Health
-
-```text
-GET /api/health
-```
-
-Checks whether Ollama is reachable and reports available models.
-
-### Analyze
-
-```text
-POST /api/analyze
-```
-
-Clones and indexes a public GitHub repository.
-
-### Search
-
-```text
-POST /api/search
-```
-
-Searches indexed source files.
-
-### Ask
-
-```text
-POST /api/ask
-```
-
-Builds relevant code context and asks the local LLM.
-
-### Architecture
-
-```text
-POST /api/architecture
-```
-
-Generates an architecture explanation using repository context.
-
----
-
-# 🧠 Why this is a good college project
-
-RepoPilot combines several real engineering concepts in one application:
-
-```text
-React
-  +
-FastAPI
-  +
-Git
-  +
-Code indexing
-  +
-Search
-  +
-Local LLM
-  +
-REST APIs
-  +
-Repository analysis
-```
-
-It is also easy to demonstrate in a viva:
-
-> **"Give me a GitHub repository and I can locally clone it, inspect it, search its code, analyze project health, and ask an open-source local LLM questions about its architecture."**
-
-That's a much better demonstration than a static AI chatbot.
-
----
-
-# 🧪 Development checks
-
-The repository now includes GitHub Actions for basic regression checks on pushes and pull requests:
-
-- Backend dependency installation and Python bytecode compilation
-- Frontend dependency installation with the committed lockfile
-- Frontend production build
-
-Run the same frontend build locally with:
-
-```powershell
-cd frontend
-npm ci
-npm run build
-```
-
-For the backend, a quick syntax check is:
-
-```powershell
-python -m compileall -q backend
-```
-
-These checks are intentionally lightweight: they catch broken imports, syntax errors, dependency drift, and frontend build failures without executing cloned third-party repositories.
-
----
-
-# 🚧 Current limitations
-
-This version intentionally supports **public GitHub repositories only**.
-
-It does not currently:
-
-- Analyze private repositories
-- Execute project code
-- Build dependency graphs
-- Parse every programming language with a full AST
-- Perform a real security audit
-- Guarantee that the LLM's explanation is correct
-
-The AI is only as reliable as the repository context and local model.
-
----
-
-# 🔮 Future ideas
-
-Possible upgrades:
-
-- [ ] ZIP repository upload
-- [ ] Private GitHub OAuth
-- [ ] GitHub App integration
-- [ ] AST-based code analysis
-- [ ] Dependency graph visualization
-- [ ] Call graph visualization
-- [ ] Git commit history analysis
-- [ ] Security smell detection
-- [ ] Automatic README generation
-- [ ] Local embeddings / RAG
-- [ ] Multiple Ollama models
-- [ ] Export architecture report as PDF
-- [ ] Repository comparison
-- [ ] Code-quality trends
-
----
-
-# 👨‍💻 Built by
-
-## **@harshitethic**
-
-Built by **[@harshitethic](https://github.com/harshitethic)**
-
-### ❤️ For his college bhais
-
-Made for students who want to build, understand, customize, and actually explain their projects in the viva.
-
-No fake demo.
-
-No:
-
-```text
-"Please enter your OpenAI API key"
-```
-
-Just clone it, run it, understand it, and make it better. 🚀
-
----
-
-# ⭐ If you found it useful
-
-Star the repository ⭐
-
-Fork it 🍴
-
-Break it 💀
-
-Fix it 🔧
-
-And most importantly:
-
-**Understand your code before your viva. 😭**
-
----
+~~~text
+React / Vite frontend (localhost:5173)
+              |
+         /api/* proxy
+              |
+FastAPI (127.0.0.1:8000)
+     |           |            |
+ ZIP / Git    Index/search   Optional Ollama
+  import         |            |
+     +-------- private local workspaces
+~~~
+
+The API provides ZIP/Git import, repository inventory/deletion, source search, health and optional architecture/answer endpoints. See the [real HTTP walkthrough](docs/http-smoke-test.md).
+
+## Test evidence and threat model
+
+- **93 backend regression tests**, independently run in CI on Python **3.11, 3.12 and 3.13**.
+- Three frontend health-contract tests, production Vite build, and a real-browser test uploading/searching two repositories while a delayed AI response arrives.
+- Python and JavaScript CodeQL extended security analysis on PRs and main.
+- Documented failure injection and limitations instead of claims of perfect security.
+
+| Boundary | Reproduction and limitations |
+| --- | --- |
+| ZIP traversal, duplicates and extraction | [ZIP threat model](docs/zip-ingestion-security.md) |
+| HTTPS Git validation and config isolation | [Git import model](docs/github-import-security.md) |
+| Git subprocess wall/CPU/file limits | [POSIX process limits](docs/git-process-limits.md) |
+| Default 1 import / 2 AI requests across processes | [Work admission](docs/concurrent-work-admission.md) |
+| Upload caps before multipart parsing | [Request-body limits](docs/request-body-admission.md) |
+| Persistent logical storage quota | [Storage budget](docs/import-storage-budget.md) |
+| Real backend/browser and synthetic model reply | [Browser evidence](docs/browser-demo.md) |
+| Loopback API boundary | [API security model](docs/local-api-boundary.md) |
+
+**Known limitations:** The API has no multi-user authentication. Peak temporary disk, network, server buffers and aggregate CPU/RSS across Git descendants are not fully bounded. Linux applies a per-process virtual-address-space cap to Git; macOS does not. ZIP processing and local Ollama are not inside containers here. Windows backend Git import fails closed. Do not expose the API to the internet without a separate security design.
+
+## Contributing
+
+Reproducible bug reports, onboarding feedback and focused tests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), use synthetic fixtures and keep keys/private repositories out of issues and pull requests.
 
 ## License
 
-MIT License.
-
-## Import security and deployment boundaries
-
-RepoPilot now accepts **credential-free HTTPS GitHub repository URLs only**, isolates Git subprocesses from host Git configuration overrides, and reserves import directories atomically to prevent random-ID collisions from deleting existing workspaces.
-
-Read the [GitHub import security model](docs/github-import-security.md) for the network-free regression suite and explicit limitations. RepoPilot remains a **local developer tool**; it is not a sandbox or an audited public multi-user service.
-
-## Local-only API boundary
-
-RepoPilot's **unauthenticated** FastAPI backend now rejects non-loopback clients by default, including requests carrying spoofed forwarding headers. See the [local-only API trust boundary](docs/local-api-boundary.md) for regression tests, reverse-proxy caveats and instructions to avoid public exposure. This is **not** authentication or multi-tenant isolation.
+[MIT](LICENSE) © 2026 Harshit Sharma.
