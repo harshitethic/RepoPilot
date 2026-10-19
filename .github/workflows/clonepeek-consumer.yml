@@ -24,7 +24,7 @@ jobs:
 
       - name: Audit RepoPilot as an actual independent consumer
         id: repopilot
-        uses: harshitethic/clonepeek@65adee2b786e0c686b010f4f8f30b4e692759a95
+        uses: harshitethic/clonepeek@01161b9521c457406542dcac88c79d5028b0908c
         with:
           path: .
           fail-on: none
@@ -55,7 +55,7 @@ jobs:
 
       - name: Scan external Cursor configuration as a separate consumer
         id: cursor
-        uses: harshitethic/clonepeek@65adee2b786e0c686b010f4f8f30b4e692759a95
+        uses: harshitethic/clonepeek@01161b9521c457406542dcac88c79d5028b0908c
         with:
           path: public-samples/cursor-cookbook
           fail-on: none
@@ -64,7 +64,7 @@ jobs:
 
       - name: Scan external VS Code configuration as a separate consumer
         id: yappchat
-        uses: harshitethic/clonepeek@65adee2b786e0c686b010f4f8f30b4e692759a95
+        uses: harshitethic/clonepeek@01161b9521c457406542dcac88c79d5028b0908c
         with:
           path: public-samples/yappchat
           fail-on: none
