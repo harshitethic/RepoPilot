@@ -283,6 +283,7 @@ def _clone_repo_locked(url: str):
         "-c", "credential.helper=",
         "-c", "protocol.file.allow=never",
         "-c", "protocol.ext.allow=never",
+        "-c", "http.followRedirects=false",
         "clone", "--depth", "1", "--quiet", "--no-local",
         "--", safe, str(dest),
     ]
