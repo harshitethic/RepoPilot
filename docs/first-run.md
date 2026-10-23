@@ -5,7 +5,7 @@ index ZIP uploads, display file trees or search source.
 
 ## Requirements
 
-- Python 3.11–3.13 (3.12 recommended), Node.js 20+ with npm, and Git.
+- Python 3.11–3.13 (3.12 recommended), **Node.js 20.19+ (20.x) or Node.js 22.12+**, npm, and Git. Vite 8 does not support earlier Node 20/22 minor releases or Node 21; see [frontend compatibility](frontend-compatibility.md).
 - A free local TCP port 8000 for FastAPI and port 5173 for Vite.
 - Disk space for npm/Python dependencies and imported repositories. Default
   persistent logical storage budget is 2 GiB; see [resource limits](import-storage-budget.md).
