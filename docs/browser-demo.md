@@ -24,7 +24,7 @@ or represented in the original GIF.
 
 ## Reproduce locally (two terminals)
 
-Use a trusted local computer with Python 3.11+, Node 20+ and Git:
+Use a trusted local computer with Python 3.11+, **Node 20.19+ (20.x) or Node 22.12+**, and Git:
 
     git clone https://github.com/harshitethic/RepoPilot.git
     cd RepoPilot
