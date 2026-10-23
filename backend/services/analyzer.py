@@ -40,7 +40,7 @@ def build_context(root,q,max_files=8,max_chars=18000):
         low=(rel+"\n"+text[:30000]).lower()
         score=sum(t in low for t in tokens)+sum(k in rel.lower() for k in ["readme","app.","main.","index.","route","api"])*2
         if score: ranked.append((score,rel,text))
-    ranked.sort(reverse=True,key=lambda x:x[0]); out=""; used=0
+    ranked.sort(key=lambda x: (-x[0], x[1].casefold(), x[1])); out=""; used=0
     for _,rel,text in ranked[:max_files]:
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
         if used+len(block)>max_chars: break
