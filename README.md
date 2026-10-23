@@ -2,6 +2,8 @@
 
 **Explore unfamiliar codebases locally. Import a repository, browse files, search real source lines, and optionally ask a local AI model.**
 
+**Try it without any AI model:** [Independent first-run and isolation review](docs/independent-evaluation.md) · [Report a reproducible issue](https://github.com/harshitethic/RepoPilot/issues/new/choose). Synthetic demonstrations are identified as fixtures.
+
 [![Python and browser CI](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/harshitethic/RepoPilot/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/harshitethic/RepoPilot/actions/workflows/codeql.yml/badge.svg)](https://github.com/harshitethic/RepoPilot/actions/workflows/codeql.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
