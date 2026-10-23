@@ -48,6 +48,19 @@ Initial integration checked **23 October 2026** on an authorized Kali workstatio
 
 The enlarged E2E scenario and **Node 20/22** compatibility must be evaluated by the pull-request CI; the Kali result does **not** by itself prove those environments. Backend tests and security boundaries are unaffected by this packaging change but remain part of repository CI.
 
+## Additional compatibility regression coverage
+
+The follow-up browser test suite separates two interaction contracts from the
+existing multi-repository isolation scenario. One checks that a GitHub URL is
+submitted correctly and a simulated HTTP 422 error is shown without leaving
+the button disabled. The other uploads a disposable ZIP and checks that the
+architecture panel renders the deterministic local API response. These are
+**fixture tests**, not proof of a real remote Git clone or live Ollama inference.
+
+CI also runs `npm audit --audit-level=high` on each frontend Node 20/22 job
+using the committed lockfile. Audit results reflect published advisories at
+the time of each run and are not independent security certification.
+
 ## Manual review checklist
 
 - [ ] Run from a truly clean `npm ci`; do not confuse a cached `node_modules` with the lockfile result.
