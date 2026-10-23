@@ -36,7 +36,12 @@ jobs:
         run: PYTHONPATH=backend python -m unittest discover -s backend/tests -v
 
   frontend:
+    name: Frontend (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -44,13 +49,17 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Audit dependency advisories
+        working-directory: frontend
+        run: npm audit --audit-level=high
 
       - name: Test health response compatibility
         working-directory: frontend
@@ -76,7 +85,7 @@ jobs:
       - name: Node for real React frontend
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
