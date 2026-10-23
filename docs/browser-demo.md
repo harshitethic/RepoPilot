@@ -24,7 +24,7 @@ or represented in the original GIF.
 
 ## Reproduce locally (two terminals)
 
-Use a trusted local computer with Python 3.11+, Node 20+ and Git:
+Use a trusted local computer with Python 3.11+, Node 20.19+ or 22.12+ (or Node 24), and Git:
 
     git clone https://github.com/harshitethic/RepoPilot.git
     cd RepoPilot
@@ -80,6 +80,16 @@ installed locally (CI installs Playwright Chromium instead):
 The browser harness binds solely to loopback and creates a disposable
 temporary repository workspace. The test's browser-network interception is used solely to reproduce a
 late API response; it does not alter the normal application.
+
+## Browser coverage added with the React 19 / Vite 8 upgrade
+
+The Playwright suite now has **three** Chrome/Chromium scenarios:
+
+1. Actual ZIP upload, source search and delayed-response isolation between two repositories (uses a controlled final AI answer).
+2. GitHub URL form submission and backend error rendering. The network request is **deliberately intercepted** with a 422 fixture; this does not prove a live GitHub clone.
+3. Actual ZIP upload followed by the architecture button requesting the real local API, with a deterministic fake model response; this does not test model inference quality.
+
+Run `REPOPILOT_PYTHON=../.venv/bin/python npm run test:e2e` from `frontend` after installing dependencies. GitHub CI runs the browser scenarios with Node 22 and installs Playwright Chromium. This is a compatibility and isolation regression suite, not an independent production security audit.
 
 ## Verification and limitations
 
