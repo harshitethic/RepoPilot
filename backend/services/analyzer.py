@@ -47,4 +47,6 @@ def build_context(root,q,max_files=8,max_chars=18000):
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block)
+        if out.count("\n--- FILE: ") >= max_files:
+            break
     return out or "No strongly matching files were found. Say that the supplied context is insufficient."
