@@ -34,6 +34,8 @@ def search_code(root,q,limit=50):
     return out
 
 def build_context(root,q,max_files=8,max_chars=18000):
+    if max_files < 1 or max_chars < 1:
+        return "No context budget available."
     tokens={x for x in q.lower().replace("/"," ").replace("."," ").split() if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
