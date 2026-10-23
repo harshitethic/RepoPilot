@@ -26,7 +26,7 @@ def analyze(root):
 def search_code(root,q,limit=50):
     q=q.casefold().strip(); out=[]
     if not q: return []
-    for p in iter_files(root):
+    for p in sorted(iter_files(root), key=lambda item: item.relative_to(root).as_posix().casefold()):
         for i,line in enumerate(read_text(p).splitlines(),1):
             if q in line.casefold():
                 out.append({"path":str(p.relative_to(root)).replace("\\","/"),"line":i,"text":line.strip()[:300]})
