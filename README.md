@@ -107,8 +107,8 @@ The API provides ZIP/Git import, repository inventory/deletion, source search, h
 
 ## Test evidence and threat model
 
-- **93 backend regression tests**, independently run in CI on Python **3.11, 3.12 and 3.13**.
-- Three frontend health-contract tests, production Vite build, and a real-browser test uploading/searching two repositories while a delayed AI response arrives.
+- **100 backend regression tests**, independently run in CI on Python **3.11, 3.12 and 3.13**.
+- Three frontend health-contract tests, production Vite build, and three real-browser checks for GitHub URL form handling, architecture response rendering, and ZIP import/search isolation during a delayed AI answer.
 - Python and JavaScript CodeQL extended security analysis on PRs and main.
 - Documented failure injection and limitations instead of claims of perfect security.
 
