@@ -24,11 +24,11 @@ def analyze(root):
     return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in langs.most_common()],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
 
 def search_code(root,q,limit=50):
-    q=q.lower().strip(); out=[]
+    q=q.casefold().strip(); out=[]
     if not q: return []
     for p in iter_files(root):
         for i,line in enumerate(read_text(p).splitlines(),1):
-            if q in line.lower():
+            if q in line.casefold():
                 out.append({"path":str(p.relative_to(root)).replace("\\","/"),"line":i,"text":line.strip()[:300]})
                 if len(out)>=limit:return out
     return out
