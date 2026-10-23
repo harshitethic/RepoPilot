@@ -32,6 +32,12 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
             ["a_first.py", "z_last.py"],
         )
 
+    def test_context_ties_are_ordered_by_path(self):
+        self.write("zeta.py", "shared_keyword = 1\n")
+        self.write("alpha.py", "shared_keyword = 2\n")
+        context = build_context(self.root, "shared_keyword", max_files=2)
+        self.assertLess(context.index("--- FILE: alpha.py"), context.index("--- FILE: zeta.py"))
+
 
 if __name__ == "__main__":
     unittest.main()
