@@ -87,6 +87,7 @@ class RepositorySafetyTests(unittest.TestCase):
         self.assertIn("core.fsmonitor=false", args[0])
         self.assertIn("credential.helper=", args[0])
         self.assertIn("protocol.ext.allow=never", args[0])
+        self.assertIn("http.followRedirects=false", args[0])
         self.assertEqual(kwargs["timeout"], 90)
         self.assertEqual(kwargs["cwd"], self.repos)
         for prohibited in ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
