@@ -43,6 +43,6 @@ def build_context(root,q,max_files=8,max_chars=18000):
     ranked.sort(key=lambda x: (-x[0], x[1].casefold(), x[1])); out=""; used=0
     for _,rel,text in ranked[:max_files]:
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
-        if used+len(block)>max_chars: break
+        if used+len(block)>max_chars: continue
         out+=block; used+=len(block)
     return out or "No strongly matching files were found. Say that the supplied context is insufficient."
