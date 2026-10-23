@@ -19,8 +19,23 @@ test('real ZIP imports, searches and delayed AI response cannot cross repository
     execFileSync(python, ['-c', zipScript, alpha, beta]);
     await page.goto('/');
     await expect(page.getByText('RepoPilot', { exact: true }).first()).toBeVisible();
+
+    // React 19 compatibility: controlled text inputs and validation survive a
+    // render cycle without accidentally initiating network operations.
+    await page.getByRole('button', { name: 'Analyze repository' }).click();
+    await expect(page.getByText('Paste a public GitHub repository URL.')).toBeVisible();
+    const repoUrl = page.getByPlaceholder('https://github.com/owner/repository');
+    await repoUrl.fill('https://github.com/example/repository');
+    await expect(repoUrl).toHaveValue('https://github.com/example/repository');
+    await repoUrl.fill('');
+
     await page.locator('input[type=file]').setInputFiles(alpha);
     await expect(page.getByText('indexed files', { exact: false })).toBeVisible();
+
+    // Exercise the actual architecture HTTP route against the explicitly
+    // synthetic model fixture. This verifies UI state, NOT real model quality.
+    await page.getByRole('button', { name: 'Explain architecture' }).click();
+    await expect(page.locator('.panel.wide pre')).toContainText('Synthetic LLM answer');
 
     await page.getByRole('button', { name: 'Code Search' }).click();
     await page.getByPlaceholder('Search functions, variables, routes, imports...').fill('alpha_marker');
@@ -49,6 +64,7 @@ test('real ZIP imports, searches and delayed AI response cannot cross repository
     await page.getByRole('button', { name: 'New repo' }).click({ force: true });
     await page.locator('input[type=file]').setInputFiles(beta);
     await expect(page.getByText('indexed files', { exact: false })).toBeVisible();
+    await expect(page.locator('.panel.wide pre')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Code Search' }).click();
     await expect(page.locator('.result')).toHaveCount(0);
