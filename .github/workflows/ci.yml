@@ -56,6 +56,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Audit resolved dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: Test health response compatibility
         working-directory: frontend
         run: npm test
