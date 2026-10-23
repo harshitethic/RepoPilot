@@ -24,6 +24,14 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         matches = search_code(self.root, "straße")
         self.assertEqual([(row["path"], row["line"]) for row in matches], [("example.py", 1)])
 
+    def test_search_results_use_stable_path_order(self):
+        self.write("z_last.py", "needle = 2\n")
+        self.write("a_first.py", "needle = 1\n")
+        self.assertEqual(
+            [row["path"] for row in search_code(self.root, "needle")],
+            ["a_first.py", "z_last.py"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
