@@ -38,6 +38,13 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         context = build_context(self.root, "shared_keyword", max_files=2)
         self.assertLess(context.index("--- FILE: alpha.py"), context.index("--- FILE: zeta.py"))
 
+    def test_context_skips_oversized_match_to_include_smaller_file(self):
+        self.write("a_large.py", "needle = 1\n" + "x" * 3000)
+        self.write("z_small.py", "needle = 2\n")
+        context = build_context(self.root, "needle", max_files=1, max_chars=150)
+        self.assertIn("--- FILE: z_small.py", context)
+        self.assertNotIn("--- FILE: a_large.py", context)
+
 
 if __name__ == "__main__":
     unittest.main()
