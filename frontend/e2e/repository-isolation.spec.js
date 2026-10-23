@@ -88,3 +88,48 @@ test('real ZIP imports, searches and delayed AI response cannot cross repository
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('GitHub URL form sends the entered URL and shows a remote-import failure', async ({ page }) => {
+  // Intercept only the public GitHub import request. No external clone or
+  // provider network traffic is exercised by this UI contract check.
+  const input = 'https://github.com/octocat/Hello-World';
+  let submitted = null;
+  await page.route('**/api/analyze', async route => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({
+      status: 422,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Offline fixture: repository clone not attempted' }),
+    });
+  });
+  await page.goto('/');
+  await page.getByPlaceholder('https://github.com/owner/repository').fill(input);
+  await page.getByRole('button', { name: 'Analyze repository' }).click();
+  await expect(page.locator('.error')).toContainText('Offline fixture: repository clone not attempted');
+  expect(submitted).toEqual({ url: input });
+  await expect(page.getByRole('button', { name: 'Analyze repository' })).toBeEnabled();
+});
+
+test('architecture panel consumes the local API with deterministic model fixture', async ({ page }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'repopilot-architecture-'));
+  const archive = join(dir, 'architecture-fixture.zip');
+  const python = process.env.REPOPILOT_PYTHON || 'python3';
+  const script = [
+    'import sys,zipfile',
+    'with zipfile.ZipFile(sys.argv[1],"w") as z:',
+    ' z.writestr("README.md","# Architecture test\\n")',
+    ' z.writestr("src/entry.py","def entry():\\n    return 1\\n")',
+  ].join('\n');
+  try {
+    execFileSync(python, ['-c', script, archive]);
+    await page.goto('/');
+    await page.locator('input[type=file]').setInputFiles(archive);
+    await expect(page.getByText('indexed files', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Explain architecture' }).click();
+    await expect(page.locator('.panel.wide pre')).toContainText('Synthetic LLM answer');
+    await expect(page.locator('.panel.wide pre')).toContainText('not a real model output');
+    await expect(page.getByRole('button', { name: 'Explain architecture' })).toBeEnabled();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
