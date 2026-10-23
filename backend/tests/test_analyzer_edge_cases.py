@@ -45,6 +45,15 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.assertIn("--- FILE: z_small.py", context)
         self.assertNotIn("--- FILE: a_large.py", context)
 
+    def test_context_budget_counts_included_not_considered_files(self):
+        self.write("a_large.py", "needle = 1\n" + "x" * 3000)
+        self.write("b_small.py", "needle = 2\n")
+        self.write("c_small.py", "needle = 3\n")
+        context = build_context(self.root, "needle", max_files=2, max_chars=250)
+        self.assertIn("--- FILE: b_small.py", context)
+        self.assertIn("--- FILE: c_small.py", context)
+        self.assertNotIn("--- FILE: a_large.py", context)
+
 
 if __name__ == "__main__":
     unittest.main()
