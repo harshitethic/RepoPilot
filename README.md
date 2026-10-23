@@ -32,7 +32,7 @@ The browser walkthrough uses a **real FastAPI/Vite app** and controlled ZIP repo
 
 See the [cross-platform first-run guide](docs/first-run.md) for detailed steps and troubleshooting.
 
-**macOS/Linux**, two terminals, Python 3.12 and Node.js 20 recommended:
+**macOS/Linux**, two terminals, Python 3.12 and Node.js **20.19+ / 22.12+** recommended (Vite 8 requires these minimum minors):
 
 ~~~bash
 git clone https://github.com/harshitethic/RepoPilot.git
