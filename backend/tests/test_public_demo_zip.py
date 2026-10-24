@@ -40,9 +40,48 @@ class PublishedDemoZipTests(unittest.TestCase):
                 self.assertIn("src/catalog.py", paths)
                 self.assertIn("src/api.py", paths)
                 self.assertIn("find_title", archive.read("src/catalog.py").decode("utf-8"))
+                self.assertTrue(all(
+                    member.date_time == (1980, 1, 1, 0, 0, 0)
+                    and member.create_system == 3
+                    and member.external_attr >> 16 == 0o100644
+                    for member in archive.infolist()
+                ))
                 self.assertTrue(
                     all(not p.startswith("/") and ".." not in Path(p).parts for p in paths)
                 )
+
+    def test_generator_does_not_overwrite_existing_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "existing.zip"
+            sentinel = b"EXISTING_DOCUMENT_DO_NOT_TOUCH"
+            destination.write_bytes(sentinel)
+            result = subprocess.run(
+                [sys.executable, str(GENERATOR), "--output", str(destination)],
+                cwd=ROOT, capture_output=True, text=True, timeout=20
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("already exists", result.stderr.lower())
+            self.assertEqual(destination.read_bytes(), sentinel)
+
+
+    @unittest.skipIf(sys.platform == "win32", "Windows symlink setup needs special privileges")
+    def test_generator_does_not_follow_existing_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "important.txt"
+            sentinel = b"DO_NOT_REPLACE_SYMLINK_TARGET"
+            target.write_bytes(sentinel)
+            link = root / "fictional-catalog.zip"
+            link.symlink_to(target)
+            result = subprocess.run(
+                [sys.executable, str(GENERATOR), "--output", str(link)],
+                cwd=ROOT, capture_output=True, text=True, timeout=20
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("already exists", result.stderr.lower())
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(target.read_bytes(), sentinel)
+
 
 
 class PublishedDemoHttpTests(unittest.IsolatedAsyncioTestCase):

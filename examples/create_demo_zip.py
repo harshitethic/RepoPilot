@@ -13,13 +13,25 @@ DEMO_FILES = {'README.md': '# Fictional Catalog Service\n\nOffline demonstration
 def create_demo_zip(destination: Path) -> Path:
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path, contents in DEMO_FILES.items():
-            archive.writestr(path, contents)
+    # Exclusive creation refuses existing files and symlinks; a first-run demo
+    # should never replace another file at a caller-selected output path.
+    with destination.open("xb") as output:
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path, contents in DEMO_FILES.items():
+                # An explicit DOS timestamp and file mode keep ZIP members
+                # reproducible across seconds and independent of host OS.
+                member = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
+                member.compress_type = zipfile.ZIP_DEFLATED
+                member.create_system = 3
+                member.external_attr = 0o100644 << 16
+                archive.writestr(member, contents)
     return destination
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    print(create_demo_zip(args.output))
+    try:
+        print(create_demo_zip(args.output))
+    except FileExistsError:
+        parser.error(f"Output already exists: {args.output}. Choose another --output path.")
