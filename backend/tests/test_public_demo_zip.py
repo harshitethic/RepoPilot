@@ -40,6 +40,12 @@ class PublishedDemoZipTests(unittest.TestCase):
                 self.assertIn("src/catalog.py", paths)
                 self.assertIn("src/api.py", paths)
                 self.assertIn("find_title", archive.read("src/catalog.py").decode("utf-8"))
+                self.assertTrue(all(
+                    member.date_time == (1980, 1, 1, 0, 0, 0)
+                    and member.create_system == 3
+                    and member.external_attr >> 16 == 0o100644
+                    for member in archive.infolist()
+                ))
                 self.assertTrue(
                     all(not p.startswith("/") and ".." not in Path(p).parts for p in paths)
                 )
