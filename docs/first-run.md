@@ -67,9 +67,26 @@ Windows Git subprocess fallback just to clone a remote repository.
 
 ## First example without Ollama
 
-Create a ZIP with a small **src/hello.py** containing a function called
-**hello**. Upload it through the UI, explore the source tree and search for
-**hello**. The search results should show the real source path and line.
+Generate the published fictional sample ZIP from the checkout root:
+
+~~~bash
+python examples/create_demo_zip.py --output fictional-catalog.zip
+~~~
+
+The generator works on macOS, Linux and Windows PowerShell (use `py` if that
+is your Python command). It makes no network requests and contains no secrets.
+Import **fictional-catalog.zip** through the UI, then search for **find_title**.
+The search result should show **src/catalog.py**, line **2**. These are real
+source lines from a fictional fixture, **not** an AI model answer.
+
+CI checks this exact public ZIP generator and its real FastAPI ZIP-import/search/
+deletion journey, without starting Ollama:
+
+~~~bash
+PYTHONPATH=backend python -m unittest discover -s backend/tests -p test_public_demo_zip.py -v
+~~~
+
+On Windows PowerShell, first set `$env:PYTHONPATH = "backend"` as shown below.
 
 For a deterministic automated example, use the real FastAPI ASGI app with a
 disposable ZIP fixture. It stubs the external model to test the API contract
