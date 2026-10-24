@@ -23,13 +23,43 @@ def analyze(root):
     warnings=[f"No {k} detected" for k,v in signals.items() if not v and k in {"readme","tests","gitignore","ci"}]
     return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in langs.most_common()],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
 
+def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
+    """Return a bounded source excerpt that includes the actual matched text.
+
+    casefold() can expand characters (e.g. ß -> ss), so positions in its
+    result are not necessarily character positions in the original string.
+    """
+    text = line.strip()
+    if len(text) <= maximum:
+        return text
+    normalized_position = text.casefold().find(query)
+    # Called only after search_code confirmed the casefolded match.
+    if normalized_position < 0:
+        return text[:maximum]
+
+    offset = 0
+    source_position = 0
+    for source_position, character in enumerate(text):
+        next_offset = offset + len(character.casefold())
+        if next_offset > normalized_position:
+            break
+        offset = next_offset
+
+    start = max(0, source_position - 64)
+    prefix = "..." if start else ""
+    # Reserve a suffix budget so the public response remains <= maximum.
+    end = min(len(text), start + maximum - len(prefix) - 3)
+    suffix = "..." if end < len(text) else ""
+    return prefix + text[start:end] + suffix
+
+
 def search_code(root,q,limit=50):
     q=q.casefold().strip(); out=[]
     if not q: return []
     for p in sorted(iter_files(root), key=lambda item: item.relative_to(root).as_posix().casefold()):
         for i,line in enumerate(read_text(p).splitlines(),1):
             if q in line.casefold():
-                out.append({"path":str(p.relative_to(root)).replace("\\","/"),"line":i,"text":line.strip()[:300]})
+                out.append({"path":str(p.relative_to(root)).replace("\\","/"),"line":i,"text":_search_excerpt(line,q)})
                 if len(out)>=limit:return out
     return out
 
