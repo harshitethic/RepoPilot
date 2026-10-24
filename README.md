@@ -80,6 +80,11 @@ The backend defaults to **llama3.2:1b** at **http://127.0.0.1:11434**; set the *
 
 ### Repeatable demo without a model
 
+For a reproducible public example, run `python examples/create_demo_zip.py --output fictional-catalog.zip`
+from the checkout root on macOS, Linux or Windows PowerShell. Import the ZIP and
+search for `find_title` at `src/catalog.py:2`. CI verifies the published
+example and its real HTTP import/search/delete flow. See [first run](docs/first-run.md).
+
 The real HTTP smoke test uses disposable ZIP fixtures and synthetic answers:
 
 ~~~bash
@@ -107,7 +112,7 @@ The API provides ZIP/Git import, repository inventory/deletion, source search, h
 
 ## Test evidence and threat model
 
-- **93 backend regression tests**, independently run in CI on Python **3.11, 3.12 and 3.13**.
+- Backend regression tests, independently run in CI on Python **3.11, 3.12 and 3.13**.
 - Three frontend health-contract tests, production Vite build, and a real-browser test uploading/searching two repositories while a delayed AI response arrives.
 - Python and JavaScript CodeQL extended security analysis on PRs and main.
 - Documented failure injection and limitations instead of claims of perfect security.

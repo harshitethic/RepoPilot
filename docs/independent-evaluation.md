@@ -13,7 +13,7 @@ PYTHONPATH=backend python -m unittest discover -s backend/tests -p test_http_smo
 ```
 
    Windows PowerShell command syntax is in [first-run instructions](first-run.md). The smoke test does **not** verify external LLM output.
-3. Start the local backend/frontend, create a small ZIP containing `src/hello.py`, import it, and verify exact source path/line search without any AI provider.
+3. Generate the fictional ZIP with `python examples/create_demo_zip.py --output fictional-catalog.zip`, start the local backend/frontend, import it, and search for `find_title` at `src/catalog.py:2` without any AI provider. CI exercises that same published fixture through the real HTTP API.
 4. With two disposable ZIP repositories, switch quickly while a request is delayed. Compare against the [real Chromium fixture test](browser-demo.md); note what was fixture-driven.
 
 ## Independent adversarial review
