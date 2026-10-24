@@ -24,6 +24,27 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         matches = search_code(self.root, "straße")
         self.assertEqual([(row["path"], row["line"]) for row in matches], [("example.py", 1)])
 
+    def test_long_minified_line_shows_the_actual_match_within_bounded_snippet(self):
+        self.write("minified.js", "x" * 800 + "NeedleToken" + "y" * 800 + "\\n")
+        found = search_code(self.root, "needletoken")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["line"], 1)
+        self.assertIn("NeedleToken", found[0]["text"])
+        self.assertLessEqual(len(found[0]["text"]), 300)
+        self.assertTrue(found[0]["text"].startswith("..."))
+        self.assertTrue(found[0]["text"].endswith("..."))
+
+    def test_long_line_unicode_casefold_offset_does_not_shift_snippet(self):
+        self.write("unicode.js", "ß" * 440 + "RareNeedle" + "x" * 420 + "\\n")
+        found = search_code(self.root, "rareneedle")
+        self.assertEqual(len(found), 1)
+        self.assertIn("RareNeedle", found[0]["text"])
+        self.assertLessEqual(len(found[0]["text"]), 300)
+
+    def test_short_line_snippet_is_unchanged(self):
+        self.write("short.py", "    needle = 42   ")
+        self.assertEqual(search_code(self.root, "needle")[0]["text"], "needle = 42")
+
     def test_search_results_use_stable_path_order(self):
         self.write("z_last.py", "needle = 2\n")
         self.write("a_first.py", "needle = 1\n")
