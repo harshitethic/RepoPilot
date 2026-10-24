@@ -18,7 +18,13 @@ def create_demo_zip(destination: Path) -> Path:
     with destination.open("xb") as output:
         with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for path, contents in DEMO_FILES.items():
-                archive.writestr(path, contents)
+                # An explicit DOS timestamp and file mode keep ZIP members
+                # reproducible across seconds and independent of host OS.
+                member = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
+                member.compress_type = zipfile.ZIP_DEFLATED
+                member.create_system = 3
+                member.external_attr = 0o100644 << 16
+                archive.writestr(member, contents)
     return destination
 
 if __name__ == "__main__":
