@@ -79,6 +79,8 @@ Import **fictional-catalog.zip** through the UI, then search for **find_title**.
 The search result should show **src/catalog.py**, line **2**. These are real
 source lines from a fictional fixture, **not** an AI model answer.
 
+The generator refuses to overwrite an existing output path, including a symlink. If you run the command again, choose a different filename or manually remove only your disposable sample ZIP first.
+
 CI checks this exact public ZIP generator and its real FastAPI ZIP-import/search/
 deletion journey, without starting Ollama:
 
