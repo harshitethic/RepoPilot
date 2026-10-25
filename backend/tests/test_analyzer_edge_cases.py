@@ -41,6 +41,12 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.assertIn("RareNeedle", found[0]["text"])
         self.assertLessEqual(len(found[0]["text"]), 300)
 
+    def test_search_zero_or_negative_limit_never_emits_results(self):
+        self.write("example.py", "needle = 42")
+        for limit in (0, -1, -100):
+            with self.subTest(limit=limit):
+                self.assertEqual(search_code(self.root, "needle", limit=limit), [])
+
     def test_short_line_snippet_is_unchanged(self):
         self.write("short.py", "    needle = 42   ")
         self.assertEqual(search_code(self.root, "needle")[0]["text"], "needle = 42")
