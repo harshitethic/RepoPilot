@@ -69,8 +69,8 @@ def build_context(root,q,max_files=8,max_chars=18000):
     tokens={x for x in q.lower().replace("/"," ").replace("."," ").split() if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
-        low=(rel+"\n"+text[:30000]).lower()
-        score=sum(t in low for t in tokens)+sum(k in rel.lower() for k in ["readme","app.","main.","index.","route","api"])*2
+        low=(rel+"\n"+text[:30000]).casefold()
+        score=sum(t in low for t in tokens)+sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])*2
         if score: ranked.append((score,rel,text))
     ranked.sort(key=lambda x: (-x[0], x[1].casefold(), x[1])); out=""; used=0; selected=0
     for _,rel,text in ranked:
