@@ -41,6 +41,12 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.assertIn("RareNeedle", found[0]["text"])
         self.assertLessEqual(len(found[0]["text"]), 300)
 
+    def test_search_zero_or_negative_limit_never_emits_results(self):
+        self.write("example.py", "needle = 42")
+        for limit in (0, -1, -100):
+            with self.subTest(limit=limit):
+                self.assertEqual(search_code(self.root, "needle", limit=limit), [])
+
     def test_short_line_snippet_is_unchanged(self):
         self.write("short.py", "    needle = 42   ")
         self.assertEqual(search_code(self.root, "needle")[0]["text"], "needle = 42")
@@ -58,6 +64,27 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.write("alpha.py", "shared_keyword = 2\n")
         context = build_context(self.root, "shared_keyword", max_files=2)
         self.assertLess(context.index("--- FILE: alpha.py"), context.index("--- FILE: zeta.py"))
+
+    def test_context_query_match_ranks_above_filename_bonus(self):
+        self.write("README.md", "This file does not mention the symbol.")
+        self.write("worker.py", "def exact_unique_symbol(): pass")
+        context = build_context(self.root, "exact_unique_symbol", max_files=1)
+        self.assertIn("worker.py", context)
+        self.assertNotIn("README.md", context)
+
+    def test_context_identifies_symbols_surrounded_by_code_punctuation(self):
+        self.write("a_unrelated.py", "no matching function here")
+        self.write("z_worker.py", "def process_job(): pass")
+        context = build_context(self.root, "Where is `process_job()` defined?", max_files=1)
+        self.assertIn("z_worker.py", context)
+        self.assertNotIn("a_unrelated.py", context)
+
+    def test_context_unicode_casefold_matches_source_content(self):
+        self.write("a_unrelated.py", "nothing to see here")
+        self.write("z_relevant.py", "straße_feature = 1")
+        context = build_context(self.root, "STRASSE_FEATURE", max_files=1)
+        self.assertIn("z_relevant.py", context)
+        self.assertNotIn("a_unrelated.py", context)
 
     def test_context_skips_oversized_match_to_include_smaller_file(self):
         self.write("a_large.py", "needle = 1\n" + "x" * 3000)

@@ -1,4 +1,5 @@
 from collections import Counter
+import re
 from pathlib import Path
 from .github import iter_files, read_text
 LANG={".py":"Python",".js":"JavaScript",".jsx":"JavaScript",".ts":"TypeScript",".tsx":"TypeScript",".java":"Java",".go":"Go",".rs":"Rust",".cpp":"C++",".c":"C",".cs":"C#",".php":"PHP",".rb":"Ruby",".swift":"Swift",".kt":"Kotlin",".sql":"SQL",".html":"HTML",".css":"CSS",".scss":"SCSS",".json":"JSON",".yaml":"YAML",".yml":"YAML",".md":"Markdown",".sh":"Shell",".ps1":"PowerShell"}
@@ -55,7 +56,7 @@ def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
 
 def search_code(root,q,limit=50):
     q=q.casefold().strip(); out=[]
-    if not q: return []
+    if not q or limit < 1: return []
     for p in sorted(iter_files(root), key=lambda item: item.relative_to(root).as_posix().casefold()):
         for i,line in enumerate(read_text(p).splitlines(),1):
             if q in line.casefold():
@@ -66,14 +67,15 @@ def search_code(root,q,limit=50):
 def build_context(root,q,max_files=8,max_chars=18000):
     if max_files < 1 or max_chars < 1:
         return "No context budget available."
-    tokens={x for x in q.lower().replace("/"," ").replace("."," ").split() if len(x)>2}; ranked=[]
+    tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
-        low=(rel+"\n"+text[:30000]).lower()
-        score=sum(t in low for t in tokens)+sum(k in rel.lower() for k in ["readme","app.","main.","index.","route","api"])*2
-        if score: ranked.append((score,rel,text))
-    ranked.sort(key=lambda x: (-x[0], x[1].casefold(), x[1])); out=""; used=0; selected=0
-    for _,rel,text in ranked:
+        low=(rel+"\n"+text[:30000]).casefold()
+        matched=sum(t in low for t in tokens)
+        bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
+        if matched or bonus: ranked.append((matched,bonus,rel,text))
+    ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
+    for _,_,rel,text in ranked:
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
