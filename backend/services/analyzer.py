@@ -1,4 +1,5 @@
 from collections import Counter
+import re
 from pathlib import Path
 from .github import iter_files, read_text
 LANG={".py":"Python",".js":"JavaScript",".jsx":"JavaScript",".ts":"TypeScript",".tsx":"TypeScript",".java":"Java",".go":"Go",".rs":"Rust",".cpp":"C++",".c":"C",".cs":"C#",".php":"PHP",".rb":"Ruby",".swift":"Swift",".kt":"Kotlin",".sql":"SQL",".html":"HTML",".css":"CSS",".scss":"SCSS",".json":"JSON",".yaml":"YAML",".yml":"YAML",".md":"Markdown",".sh":"Shell",".ps1":"PowerShell"}
@@ -66,7 +67,7 @@ def search_code(root,q,limit=50):
 def build_context(root,q,max_files=8,max_chars=18000):
     if max_files < 1 or max_chars < 1:
         return "No context budget available."
-    tokens={x for x in q.lower().replace("/"," ").replace("."," ").split() if len(x)>2}; ranked=[]
+    tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
         low=(rel+"\n"+text[:30000]).casefold()
