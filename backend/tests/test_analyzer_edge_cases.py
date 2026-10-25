@@ -65,6 +65,13 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         context = build_context(self.root, "shared_keyword", max_files=2)
         self.assertLess(context.index("--- FILE: alpha.py"), context.index("--- FILE: zeta.py"))
 
+    def test_context_query_match_ranks_above_filename_bonus(self):
+        self.write("README.md", "This file does not mention the symbol.")
+        self.write("worker.py", "def exact_unique_symbol(): pass")
+        context = build_context(self.root, "exact_unique_symbol", max_files=1)
+        self.assertIn("worker.py", context)
+        self.assertNotIn("README.md", context)
+
     def test_context_identifies_symbols_surrounded_by_code_punctuation(self):
         self.write("a_unrelated.py", "no matching function here")
         self.write("z_worker.py", "def process_job(): pass")
