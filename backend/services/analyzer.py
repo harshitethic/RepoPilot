@@ -71,10 +71,11 @@ def build_context(root,q,max_files=8,max_chars=18000):
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
         low=(rel+"\n"+text[:30000]).casefold()
-        score=sum(t in low for t in tokens)+sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])*2
-        if score: ranked.append((score,rel,text))
-    ranked.sort(key=lambda x: (-x[0], x[1].casefold(), x[1])); out=""; used=0; selected=0
-    for _,rel,text in ranked:
+        matched=sum(t in low for t in tokens)
+        bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
+        if matched or bonus: ranked.append((matched,bonus,rel,text))
+    ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
+    for _,_,rel,text in ranked:
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
