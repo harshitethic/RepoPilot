@@ -65,6 +65,13 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         context = build_context(self.root, "shared_keyword", max_files=2)
         self.assertLess(context.index("--- FILE: alpha.py"), context.index("--- FILE: zeta.py"))
 
+    def test_context_identifies_symbols_surrounded_by_code_punctuation(self):
+        self.write("a_unrelated.py", "no matching function here")
+        self.write("z_worker.py", "def process_job(): pass")
+        context = build_context(self.root, "Where is `process_job()` defined?", max_files=1)
+        self.assertIn("z_worker.py", context)
+        self.assertNotIn("a_unrelated.py", context)
+
     def test_context_unicode_casefold_matches_source_content(self):
         self.write("a_unrelated.py", "nothing to see here")
         self.write("z_relevant.py", "straße_feature = 1")
