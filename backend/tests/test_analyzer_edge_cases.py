@@ -65,6 +65,13 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         context = build_context(self.root, "shared_keyword", max_files=2)
         self.assertLess(context.index("--- FILE: alpha.py"), context.index("--- FILE: zeta.py"))
 
+    def test_context_unicode_casefold_matches_source_content(self):
+        self.write("a_unrelated.py", "nothing to see here")
+        self.write("z_relevant.py", "straße_feature = 1")
+        context = build_context(self.root, "STRASSE_FEATURE", max_files=1)
+        self.assertIn("z_relevant.py", context)
+        self.assertNotIn("a_unrelated.py", context)
+
     def test_context_skips_oversized_match_to_include_smaller_file(self):
         self.write("a_large.py", "needle = 1\n" + "x" * 3000)
         self.write("z_small.py", "needle = 2\n")
