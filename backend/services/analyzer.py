@@ -78,7 +78,7 @@ def build_context(root,q,max_files=8,max_chars=18000):
         low=(rel+"\n"+text[:4000]).casefold()
         matched=sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
-        if matched or bonus: ranked.append((matched,bonus,rel,text))
+        if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
     for _,_,rel,text in ranked:
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
