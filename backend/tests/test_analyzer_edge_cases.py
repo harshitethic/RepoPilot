@@ -103,5 +103,14 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.assertNotIn("--- FILE: a_large.py", context)
 
 
+    def test_context_selected_file_exposes_the_query_match(self):
+        self.write("a_hidden.py", "x" * 5000 + "needle_for_context")
+        self.write("z_visible.py", "needle_for_context = 42")
+        context = build_context(self.root, "needle_for_context", max_files=1)
+        self.assertIn("z_visible.py", context)
+        self.assertIn("needle_for_context = 42", context)
+        self.assertNotIn("a_hidden.py", context)
+
+
 if __name__ == "__main__":
     unittest.main()
