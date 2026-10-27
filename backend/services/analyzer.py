@@ -75,7 +75,7 @@ def build_context(root,q,max_files=8,max_chars=18000):
     tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
-        low=(rel+"\n"+text[:30000]).casefold()
+        low=(rel+"\n"+text[:4000]).casefold()
         matched=sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
         if matched or bonus: ranked.append((matched,bonus,rel,text))
