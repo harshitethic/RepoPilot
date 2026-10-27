@@ -14,7 +14,12 @@ def analyze(root):
     paths={e["path"].lower() for e in entries}; names={Path(e["path"]).name.lower() for e in entries}
     signals={
       "readme":any(n.startswith("readme") for n in names),
-      "tests":any("/test" in p or p.startswith("test") or "/tests/" in p or p.startswith("tests/") for p in paths),
+      "tests":any(
+          any(part in {"test", "tests", "__tests__"} for part in p.split("/")[:-1])
+          or Path(p).name.startswith(("test_", "test."))
+          or Path(p).name.endswith(("_test.py", "_test.go", ".test.js", ".spec.js", ".test.ts", ".spec.ts", ".test.tsx", ".spec.tsx"))
+          for p in paths
+      ),
       "gitignore":".gitignore" in names,
       "manifest":any(n in names for n in ["package.json","requirements.txt","pyproject.toml","pom.xml","cargo.toml","go.mod","composer.json","gemfile"]),
       "ci":any(p.startswith(".github/workflows/") for p in paths),
@@ -70,10 +75,10 @@ def build_context(root,q,max_files=8,max_chars=18000):
     tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
-        low=(rel+"\n"+text[:30000]).casefold()
+        low=(rel+"\n"+text[:4000]).casefold()
         matched=sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
-        if matched or bonus: ranked.append((matched,bonus,rel,text))
+        if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
     for _,_,rel,text in ranked:
         block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
