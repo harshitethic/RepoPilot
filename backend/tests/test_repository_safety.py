@@ -206,5 +206,16 @@ class RepositorySafetyTests(unittest.TestCase):
         self.assertNotIn("REAL_PRIVATE_SETTING", str(analyze(imported)))
 
 
+    def test_test_signal_ignores_unrelated_source_names(self):
+        imported = self.repos / ("b" * 12)
+        imported.mkdir()
+        (imported / "src").mkdir()
+        (imported / "src" / "testimonials.py").write_text("def describe(): pass")
+        (imported / "src" / "contest.py").write_text("def compete(): pass")
+        self.assertFalse(analyze(imported)["signals"]["tests"])
+        (imported / "src" / "feature.test.ts").write_text("it('works', () => {})")
+        self.assertTrue(analyze(imported)["signals"]["tests"])
+
+
 if __name__ == "__main__":
     unittest.main()
