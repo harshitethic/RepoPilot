@@ -112,5 +112,13 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.assertNotIn("a_hidden.py", context)
 
 
+    def test_unmatched_question_does_not_return_unrelated_readme(self):
+        self.write("README.md", "setup notes without the requested identifier")
+        self.write("app.py", "def start(): pass")
+        context = build_context(self.root, "nonexistent_unique_identifier")
+        self.assertIn("No strongly matching files", context)
+        self.assertNotIn("setup notes", context)
+
+
 if __name__ == "__main__":
     unittest.main()
