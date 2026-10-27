@@ -192,6 +192,19 @@ class RepositorySafetyTests(unittest.TestCase):
                     github.extract_zip(z)
                 self.assertFalse((self.root / "escape.py").exists())
 
+    def test_environment_examples_are_indexed_without_loading_env_secrets(self):
+        imported = self.repos / ("a" * 12)
+        imported.mkdir()
+        (imported / ".env.example").write_text("SAMPLE_OPTION=placeholder")
+        (imported / "service.env.example").write_text("SERVICE_OPTION=example")
+        (imported / ".env").write_text("REAL_PRIVATE_SETTING=secret")
+        listed = {p.name for p in github.iter_files(imported)}
+        self.assertIn(".env.example", listed)
+        self.assertIn("service.env.example", listed)
+        self.assertNotIn(".env", listed)
+        self.assertIn("SAMPLE_OPTION", build_context(imported, "SAMPLE_OPTION"))
+        self.assertNotIn("REAL_PRIVATE_SETTING", str(analyze(imported)))
+
 
 if __name__ == "__main__":
     unittest.main()
