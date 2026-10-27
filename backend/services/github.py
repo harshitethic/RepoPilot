@@ -427,7 +427,7 @@ def iter_files(root: Path):
         try: size = p.stat().st_size
         except OSError: continue
         if size > 300_000: continue
-        if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower() in {"dockerfile","makefile",".gitignore"}:
+        if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower().endswith(".env.example") or p.name.lower() in {"dockerfile","makefile",".gitignore"}:
             yield p
 
 def read_text(path: Path): return path.read_text(encoding="utf-8", errors="replace")
