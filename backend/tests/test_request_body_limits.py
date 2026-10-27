@@ -181,6 +181,16 @@ class RequestBodyLimitTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/api/health")
         self.assertEqual(response.status_code, 200, response.text)
 
+    async def test_trailing_slash_upload_uses_multipart_limit(self):
+        import request_limits
+        body, content_type = multipart_zip(example_archive())
+        with patch.object(request_limits, "MAX_JSON_BODY_BYTES", 32):
+            response = await self.client.post(
+                "/api/upload/", content=body, headers={"content-type": content_type},
+            )
+        self.assertNotEqual(response.status_code, 413, response.text)
+        self.assertIn(response.status_code, (200, 307))
+
     async def test_large_json_body_rejected_without_parsing(self):
         import request_limits
         with patch.object(request_limits, "MAX_JSON_BODY_BYTES", 100):

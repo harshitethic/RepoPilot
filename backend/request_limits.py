@@ -32,7 +32,7 @@ class RequestBodyLimitMiddleware:
             return await self.app(scope, receive, send)
 
         limit = (
-            MAX_MULTIPART_BODY_BYTES if path == "/api/upload"
+            MAX_MULTIPART_BODY_BYTES if path.rstrip("/") == "/api/upload"
             else MAX_JSON_BODY_BYTES
         )
         lengths = [
