@@ -427,7 +427,7 @@ def iter_files(root: Path):
         if p.is_symlink() or not p.is_file(): continue
         if trusted_root not in p.resolve().parents: continue
         rel = p.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts): continue
+        if any(part.casefold() in SKIP_DIRS for part in rel.parts[:-1]): continue
         try: size = p.stat().st_size
         except OSError: continue
         if size > 300_000: continue
