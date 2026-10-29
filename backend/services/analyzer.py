@@ -60,6 +60,8 @@ def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
 
 
 def search_code(root,q,limit=50):
+    if type(limit) is not int:
+        raise ValueError("Search limit must be an integer.")
     q=q.casefold().strip(); out=[]
     if not q or limit < 1: return []
     for p in sorted(iter_files(root), key=lambda item: item.relative_to(root).as_posix().casefold()):
