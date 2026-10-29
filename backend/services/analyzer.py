@@ -95,4 +95,12 @@ def build_context(root,q,max_files=8,max_chars=18000):
         out+=block; used+=len(block); selected+=1
         if selected >= max_files:
             break
-    return out or "No strongly matching files were found. Say that the supplied context is insufficient."
+    if out:
+        return out
+    if ranked:
+        _,_,rel,text = ranked[0]
+        header = f"\n--- FILE: {rel} ---\n"
+        room = max_chars - len(header) - 1
+        if room > 0:
+            return header + text[:room] + "\n"
+    return "No strongly matching files were found. Say that the supplied context is insufficient."
