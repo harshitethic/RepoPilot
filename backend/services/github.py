@@ -328,6 +328,7 @@ def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipIn
     result: list[tuple[zipfile.ZipInfo, tuple[str, ...]]] = []
     total = 0
     reserved_windows = {"CON", "PRN", "AUX", "NUL", *[f"COM{i}" for i in range(1, 10)], *[f"LPT{i}" for i in range(1, 10)]}
+    reserved_windows.update({f"{prefix}{digit}" for prefix in ("COM", "LPT") for digit in "¹²³"})
     for info in infos:
         name = info.filename
         if not name or len(name) > 4096 or name.startswith("/") or "\x00" in name or "\\" in name:
