@@ -338,7 +338,7 @@ def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipIn
             not part or part in {".", ".."} or len(part) > 255
             or part[-1] in {".", " "}
             or any(ord(char) < 32 or char in '<>:"|?*' for char in part)
-            or part.split(".")[0].upper() in reserved_windows
+            or part.split(".")[0].rstrip(" ").upper() in reserved_windows
             for part in parts
         ):
             raise ValueError("ZIP contains an unsafe file path.")
