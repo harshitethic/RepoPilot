@@ -219,6 +219,8 @@ def validate_github_url(url: str) -> str:
         or parsed.params
     ):
         raise ValueError("Only credential-free HTTPS github.com repository URLs are supported.")
+    if parsed.path.endswith("/") or "//" in parsed.path:
+        raise ValueError("Invalid GitHub repository path separators.")
     parts = parsed.path.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError("Use https://github.com/owner/repository")
@@ -326,6 +328,7 @@ def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipIn
     result: list[tuple[zipfile.ZipInfo, tuple[str, ...]]] = []
     total = 0
     reserved_windows = {"CON", "PRN", "AUX", "NUL", *[f"COM{i}" for i in range(1, 10)], *[f"LPT{i}" for i in range(1, 10)]}
+    reserved_windows.update({f"{prefix}{digit}" for prefix in ("COM", "LPT") for digit in "¹²³"})
     for info in infos:
         name = info.filename
         if not name or len(name) > 4096 or name.startswith("/") or "\x00" in name or "\\" in name:
@@ -335,8 +338,9 @@ def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipIn
         if not parts or len(parts) > 32 or any(
             not part or part in {".", ".."} or len(part) > 255
             or part[-1] in {".", " "}
+            or any(unicodedata.bidirectional(c) in {"LRE", "RLE", "LRO", "RLO", "PDF", "LRI", "RLI", "FSI", "PDI"} for c in part)
             or any(ord(char) < 32 or char in '<>:"|?*' for char in part)
-            or part.split(".")[0].upper() in reserved_windows
+            or part.split(".")[0].rstrip(" ").upper() in reserved_windows
             for part in parts
         ):
             raise ValueError("ZIP contains an unsafe file path.")
@@ -423,7 +427,7 @@ def iter_files(root: Path):
         if p.is_symlink() or not p.is_file(): continue
         if trusted_root not in p.resolve().parents: continue
         rel = p.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts): continue
+        if any(part.casefold() in SKIP_DIRS for part in rel.parts[:-1]): continue
         try: size = p.stat().st_size
         except OSError: continue
         if size > 300_000: continue

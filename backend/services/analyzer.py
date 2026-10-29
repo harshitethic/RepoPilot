@@ -27,7 +27,7 @@ def analyze(root):
     }
     score=40+12*signals["readme"]+10*signals["tests"]+8*signals["gitignore"]+8*signals["manifest"]+7*signals["ci"]+7*signals["docker"]
     warnings=[f"No {k} detected" for k,v in signals.items() if not v and k in {"readme","tests","gitignore","ci"}]
-    return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in langs.most_common()],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
+    return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in sorted(langs.items(), key=lambda item: (-item[1], item[0]))],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
 
 def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
     """Return a bounded source excerpt that includes the actual matched text.
@@ -60,6 +60,8 @@ def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
 
 
 def search_code(root,q,limit=50):
+    if type(limit) is not int:
+        raise ValueError("Search limit must be an integer.")
     q=q.casefold().strip(); out=[]
     if not q or limit < 1: return []
     for p in sorted(iter_files(root), key=lambda item: item.relative_to(root).as_posix().casefold()):
@@ -75,15 +77,30 @@ def build_context(root,q,max_files=8,max_chars=18000):
     tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
-        low=(rel+"\n"+text[:4000]).casefold()
-        matched=sum(t in low for t in tokens)
+        low=(rel+"\n"+text).casefold()
+        early=(rel+"\n"+text[:4000]).casefold()
+        matched=2*sum(t in early for t in tokens)+sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
         if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
     for _,_,rel,text in ranked:
-        block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
+        displayed = text[:4000]
+        if matched and not any(t in (rel+"\n"+displayed).casefold() for t in tokens):
+            positions = [text.casefold().find(t) for t in tokens if t in text.casefold()]
+            if positions:
+                start = max(0, min(positions) - 160)
+                displayed = ("..." if start else "") + text[start:start + 3950]
+        block=f"\n--- FILE: {rel} ---\n{displayed}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
         if selected >= max_files:
             break
-    return out or "No strongly matching files were found. Say that the supplied context is insufficient."
+    if out:
+        return out
+    if ranked:
+        _,_,rel,text = ranked[0]
+        header = f"\n--- FILE: {rel} ---\n"
+        room = max_chars - len(header) - 1
+        if room > 0:
+            return header + text[:room] + "\n"
+    return "No strongly matching files were found. Say that the supplied context is insufficient."
