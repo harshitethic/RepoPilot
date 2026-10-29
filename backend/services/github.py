@@ -338,6 +338,7 @@ def _validated_zip_members(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipIn
         if not parts or len(parts) > 32 or any(
             not part or part in {".", ".."} or len(part) > 255
             or part[-1] in {".", " "}
+            or any(unicodedata.bidirectional(c) in {"LRE", "RLE", "LRO", "RLO", "PDF", "LRI", "RLI", "FSI", "PDI"} for c in part)
             or any(ord(char) < 32 or char in '<>:"|?*' for char in part)
             or part.split(".")[0].rstrip(" ").upper() in reserved_windows
             for part in parts
