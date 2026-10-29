@@ -77,13 +77,20 @@ def build_context(root,q,max_files=8,max_chars=18000):
     tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
-        low=(rel+"\n"+text[:4000]).casefold()
-        matched=sum(t in low for t in tokens)
+        low=(rel+"\n"+text).casefold()
+        early=(rel+"\n"+text[:4000]).casefold()
+        matched=2*sum(t in early for t in tokens)+sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
         if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
     for _,_,rel,text in ranked:
-        block=f"\n--- FILE: {rel} ---\n{text[:4000]}\n"
+        displayed = text[:4000]
+        if matched and not any(t in (rel+"\n"+displayed).casefold() for t in tokens):
+            positions = [text.casefold().find(t) for t in tokens if t in text.casefold()]
+            if positions:
+                start = max(0, min(positions) - 160)
+                displayed = ("..." if start else "") + text[start:start + 3950]
+        block=f"\n--- FILE: {rel} ---\n{displayed}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
         if selected >= max_files:
