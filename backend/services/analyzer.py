@@ -27,7 +27,7 @@ def analyze(root):
     }
     score=40+12*signals["readme"]+10*signals["tests"]+8*signals["gitignore"]+8*signals["manifest"]+7*signals["ci"]+7*signals["docker"]
     warnings=[f"No {k} detected" for k,v in signals.items() if not v and k in {"readme","tests","gitignore","ci"}]
-    return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in langs.most_common()],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
+    return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in sorted(langs.items(), key=lambda item: (-item[1], item[0]))],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
 
 def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
     """Return a bounded source excerpt that includes the actual matched text.
