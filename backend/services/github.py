@@ -219,6 +219,8 @@ def validate_github_url(url: str) -> str:
         or parsed.params
     ):
         raise ValueError("Only credential-free HTTPS github.com repository URLs are supported.")
+    if parsed.path.endswith("/") or "//" in parsed.path:
+        raise ValueError("Invalid GitHub repository path separators.")
     parts = parsed.path.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError("Use https://github.com/owner/repository")
