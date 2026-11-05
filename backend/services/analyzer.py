@@ -29,6 +29,18 @@ def analyze(root):
     warnings=[f"No {k} detected" for k,v in signals.items() if not v and k in {"readme","tests","gitignore","ci"}]
     return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in sorted(langs.items(), key=lambda item: (-item[1], item[0]))],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
 
+def _source_offset(text: str, folded_offset: int) -> int:
+    """Map a casefolded-string index back to a character in the source."""
+    if text.isascii():
+        return folded_offset
+    offset = 0
+    for index, character in enumerate(text):
+        offset += len(character.casefold())
+        if offset > folded_offset:
+            return index
+    return len(text)
+
+
 def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
     """Return a bounded source excerpt that includes the actual matched text.
 
@@ -43,14 +55,7 @@ def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
     if normalized_position < 0:
         return text[:maximum]
 
-    offset = 0
-    source_position = 0
-    for source_position, character in enumerate(text):
-        next_offset = offset + len(character.casefold())
-        if next_offset > normalized_position:
-            break
-        offset = next_offset
-
+    source_position = _source_offset(text, normalized_position)
     start = max(0, source_position - 64)
     prefix = "..." if start else ""
     # Reserve a suffix budget so the public response remains <= maximum.
@@ -71,6 +76,29 @@ def search_code(root,q,limit=50):
                 if len(out)>=limit:return out
     return out
 
+def _context_excerpt(text, path, tokens, budget):
+    prefix = text[:budget]
+    if not tokens or len(text) <= budget:
+        return prefix
+    visible = (path + "\n" + prefix).casefold()
+    if any(token in visible for token in tokens):
+        return prefix
+
+    folded = text.casefold()
+    matches = [(pos, token) for token in tokens if (pos := folded.find(token)) >= 0]
+    if not matches:
+        return prefix
+    position, token = min(matches)
+    source_start = _source_offset(text, position)
+    source_end = _source_offset(text, position + len(token) - 1) + 1
+    spare = max(0, budget - (source_end - source_start))
+    marker = "..." if spare >= 3 else ""
+    start = max(0, source_start - min(160, spare - len(marker)))
+    if start == 0:
+        return prefix
+    return marker + text[start:start + budget - len(marker)]
+
+
 def build_context(root,q,max_files=8,max_chars=18000):
     if max_files < 1 or max_chars < 1:
         return "No context budget available."
@@ -83,13 +111,8 @@ def build_context(root,q,max_files=8,max_chars=18000):
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
         if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
-    for _,_,rel,text in ranked:
-        displayed = text[:4000]
-        if matched and not any(t in (rel+"\n"+displayed).casefold() for t in tokens):
-            positions = [text.casefold().find(t) for t in tokens if t in text.casefold()]
-            if positions:
-                start = max(0, min(positions) - 160)
-                displayed = ("..." if start else "") + text[start:start + 3950]
+    for _, _, rel, text in ranked:
+        displayed = _context_excerpt(text, rel, tokens, 4000)
         block=f"\n--- FILE: {rel} ---\n{displayed}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
@@ -102,5 +125,5 @@ def build_context(root,q,max_files=8,max_chars=18000):
         header = f"\n--- FILE: {rel} ---\n"
         room = max_chars - len(header) - 1
         if room > 0:
-            return header + text[:room] + "\n"
+            return header + _context_excerpt(text, rel, tokens, room) + "\n"
     return "No strongly matching files were found. Say that the supplied context is insufficient."
