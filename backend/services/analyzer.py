@@ -29,6 +29,18 @@ def analyze(root):
     warnings=[f"No {k} detected" for k,v in signals.items() if not v and k in {"readme","tests","gitignore","ci"}]
     return {"file_count":len(entries),"total_lines":lines,"total_bytes":bytes_,"languages":[{"name":k,"files":v} for k,v in sorted(langs.items(), key=lambda item: (-item[1], item[0]))],"score":min(score,100),"signals":signals,"warnings":warnings,"files":sorted(entries,key=lambda x:x["path"].lower())}
 
+def _source_offset(text: str, folded_offset: int) -> int:
+    """Map a casefolded-string index back to a character in the source."""
+    if text.isascii():
+        return folded_offset
+    offset = 0
+    for index, character in enumerate(text):
+        offset += len(character.casefold())
+        if offset > folded_offset:
+            return index
+    return len(text)
+
+
 def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
     """Return a bounded source excerpt that includes the actual matched text.
 
@@ -43,14 +55,7 @@ def _search_excerpt(line: str, query: str, maximum: int = 300) -> str:
     if normalized_position < 0:
         return text[:maximum]
 
-    offset = 0
-    source_position = 0
-    for source_position, character in enumerate(text):
-        next_offset = offset + len(character.casefold())
-        if next_offset > normalized_position:
-            break
-        offset = next_offset
-
+    source_position = _source_offset(text, normalized_position)
     start = max(0, source_position - 64)
     prefix = "..." if start else ""
     # Reserve a suffix budget so the public response remains <= maximum.
@@ -88,7 +93,7 @@ def build_context(root,q,max_files=8,max_chars=18000):
         if matched and not any(t in (rel+"\n"+displayed).casefold() for t in tokens):
             positions = [text.casefold().find(t) for t in tokens if t in text.casefold()]
             if positions:
-                start = max(0, min(positions) - 160)
+                start = max(0, _source_offset(text, min(positions)) - 160)
                 displayed = ("..." if start else "") + text[start:start + 3950]
         block=f"\n--- FILE: {rel} ---\n{displayed}\n"
         if used+len(block)>max_chars: continue

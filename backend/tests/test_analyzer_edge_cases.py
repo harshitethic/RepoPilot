@@ -66,6 +66,10 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
             context = build_context(self.root, "target_symbol")
         self.assertIn("target_symbol", context)
 
+    def test_context_deep_match_after_casefold_expansion(self):
+        self.write("unicode.py", "ß" * 6000 + "Straße_feature")
+        self.assertIn("Straße_feature", build_context(self.root, "STRASSE_FEATURE"))
+
     def test_context_ties_are_ordered_by_path(self):
         self.write("zeta.py", "shared_keyword = 1\n")
         self.write("alpha.py", "shared_keyword = 2\n")
