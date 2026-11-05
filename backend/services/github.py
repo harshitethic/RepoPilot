@@ -423,16 +423,17 @@ def _extract_zip_locked(upload_path: Path):
 def iter_files(root: Path):
     # Never follow a repository-controlled symbolic link outside its tree.
     trusted_root = root.resolve()
-    for p in root.rglob("*"):
-        if p.is_symlink() or not p.is_file(): continue
-        if trusted_root not in p.resolve().parents: continue
-        rel = p.relative_to(root)
-        if any(part.casefold() in SKIP_DIRS for part in rel.parts[:-1]): continue
-        try: size = p.stat().st_size
-        except OSError: continue
-        if size > 300_000: continue
-        if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower().endswith(".env.example") or p.name.lower() in {"dockerfile","makefile",".gitignore","go.mod","gemfile"}:
-            yield p
+    for directory, subdirs, files in os.walk(root, followlinks=False):
+        subdirs[:] = [name for name in subdirs if name.casefold() not in SKIP_DIRS]
+        for name in files:
+            p = Path(directory) / name
+            if p.is_symlink() or not p.is_file(): continue
+            if trusted_root not in p.resolve().parents: continue
+            try: size = p.stat().st_size
+            except OSError: continue
+            if size > 300_000: continue
+            if p.suffix.lower() in TEXT_EXTENSIONS or p.name.lower().endswith(".env.example") or p.name.lower() in {"dockerfile","makefile",".gitignore","go.mod","gemfile"}:
+                yield p
 
 def read_text(path: Path): return path.read_text(encoding="utf-8", errors="replace")
 
