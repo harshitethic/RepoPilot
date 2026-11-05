@@ -14,6 +14,7 @@ CASES = [
     ("Where is test_query defined?", "tests/test_catalog.py", "def test_query("),
     ("catalog_handler", "src/api.py", "def catalog_handler("),
     ("Which Python version does the project require?", "pyproject.toml", "requires-python"),
+    ("Where is the missing_symbol defined?", None, None),
     ("Where is SKU looked up?", "src/catalog.py", 'product.get("sku")'),
 ]
 
@@ -26,7 +27,7 @@ def evaluate(root):
         selected = header[10:-4] if header.startswith("--- FILE: ") and header.endswith(" ---") else None
         results.append({
             "question": question, "expected": expected, "selected": selected,
-            "passed": selected == expected and evidence in excerpt,
+            "passed": selected == expected and (evidence is None or evidence in excerpt),
         })
     return results
 
@@ -34,6 +35,7 @@ def evaluate(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="print machine-readable case results")
+    parser.add_argument("--check", action="store_true", help="exit with status 1 on a retrieval miss")
     args = parser.parse_args()
     with TemporaryDirectory() as directory:
         root = Path(directory)
@@ -51,6 +53,8 @@ def main():
             print(f"{status}  {row['question']}  expected={row['expected']}  selected={row['selected']}")
         print(f"{sum(row['passed'] for row in results)}/{len(results)} cases passed")
 
+    return int(args.check and not all(row["passed"] for row in results))
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
