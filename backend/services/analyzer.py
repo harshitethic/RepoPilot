@@ -83,7 +83,7 @@ def build_context(root,q,max_files=8,max_chars=18000):
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
         if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
-    for _,_,rel,text in ranked:
+    for matched,_,rel,text in ranked:
         displayed = text[:4000]
         if matched and not any(t in (rel+"\n"+displayed).casefold() for t in tokens):
             positions = [text.casefold().find(t) for t in tokens if t in text.casefold()]
