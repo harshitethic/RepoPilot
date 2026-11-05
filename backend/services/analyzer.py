@@ -99,13 +99,28 @@ def _context_excerpt(text, path, tokens, budget):
     return marker + text[start:start + budget - len(marker)]
 
 
+_DEFINITION_QUESTION = re.compile(
+    r"where\s+is\s+(?:the\s+)?`?(?P<symbol>[^\W\d]\w*)(?:\(\))?`?"
+    r"\s+(?:defined|declared)\s*\??", re.IGNORECASE,
+)
+
+
 def build_context(root,q,max_files=8,max_chars=18000):
     if max_files < 1 or max_chars < 1:
         return "No context budget available."
-    tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
+    definition = _DEFINITION_QUESTION.fullmatch(q.strip())
+    if definition:
+        symbol = definition["symbol"].casefold()
+        tokens = {symbol}
+        exact_symbol = re.compile(rf"\b{re.escape(symbol)}\b")
+    else:
+        tokens = {x for x in re.findall(r"[\w-]+", q.casefold()) if len(x) > 2}
+    ranked = []
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
         low=(rel+"\n"+text).casefold()
+        if definition and not exact_symbol.search(low):
+            continue
         early=(rel+"\n"+text[:4000]).casefold()
         matched=2*sum(t in early for t in tokens)+sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])

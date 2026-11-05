@@ -80,6 +80,16 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
                 self.assertIn("target_symbol", context)
                 self.assertLessEqual(len(context), budget)
 
+    def test_definition_lookup_abstains_on_partial_names_and_question_words(self):
+        self.write("api.py", "# where the methods are defined\ndef recorded_item(): pass")
+        result = build_context(self.root, "Where is the `item()` defined?")
+        self.assertIn("No strongly matching files", result)
+
+    def test_definition_lookup_accepts_short_identifiers(self):
+        self.write("store.py", "class DB: pass")
+        result = build_context(self.root, "Where is db declared?")
+        self.assertIn("class DB", result)
+
     def test_context_ties_are_ordered_by_path(self):
         self.write("zeta.py", "shared_keyword = 1\n")
         self.write("alpha.py", "shared_keyword = 2\n")
