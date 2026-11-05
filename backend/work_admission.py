@@ -23,6 +23,8 @@ ROUTES = {
     ("POST", "/api/analyze"): "import",
     ("POST", "/api/ask"): "ai",
     ("POST", "/api/architecture"): "ai",
+    ("POST", "/api/rag/retrieve"): "ai",
+    ("POST", "/api/rag/ask"): "ai",
 }
 
 
