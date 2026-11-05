@@ -35,3 +35,20 @@ Open an [issue](https://github.com/harshitethic/RepoPilot/issues) with commit SH
 - [ ] Dependency upgrade compatibility independently verified before merging
 - [ ] Release screenshots label mocks and scripted browser fixtures accurately
 - [ ] External review/adoption claims cite independent, reproducible records
+
+## Check the evidence sent to Ask AI
+
+From the checkout root, use the backend Python environment to run the catalog
+retrieval cases. Each question gets one file of context, which makes a wrong
+first choice visible. A positive case checks both the source path and a literal
+piece of evidence inside the excerpt. The missing-symbol case expects no file.
+
+~~~bash
+PYTHONPATH=backend python examples/evaluate_retrieval.py
+~~~
+
+In PowerShell, set `$env:PYTHONPATH = "backend"` before running the Python
+command. Use `--json` for per-question records and `--check` for a nonzero exit
+status when any case fails. The script creates the fictional catalog in a
+temporary directory and exercises retrieval without starting a server or
+calling Ollama. Results apply to this small fixture.
