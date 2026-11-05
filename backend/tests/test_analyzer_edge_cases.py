@@ -90,6 +90,17 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         result = build_context(self.root, "Where is db declared?")
         self.assertIn("class DB", result)
 
+    def test_definition_lookup_prefers_the_declaration_over_imports_and_examples(self):
+        self.write("api.py", "from worker import process_job")
+        self.write("README.md", "def process_job(): ...")
+        self.write("worker.py", "# process_job\n" + "#" * 6000 + "\nasync def process_job(): pass")
+        for budget in (18000, 160):
+            with self.subTest(budget=budget):
+                context = build_context(self.root, "Where is process_job defined?", 1, budget)
+                self.assertIn("--- FILE: worker.py", context)
+                self.assertIn("async def process_job", context)
+                self.assertLessEqual(len(context), budget)
+
     def test_context_ties_are_ordered_by_path(self):
         self.write("zeta.py", "shared_keyword = 1\n")
         self.write("alpha.py", "shared_keyword = 2\n")
