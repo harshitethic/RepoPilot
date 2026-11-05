@@ -1,0 +1,1 @@
+"""Repository-scoped, citation-aware BM25 retrieval for RepoPilot."""
