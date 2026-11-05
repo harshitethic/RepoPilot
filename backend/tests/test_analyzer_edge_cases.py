@@ -101,6 +101,12 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
                 self.assertIn("async def process_job", context)
                 self.assertLessEqual(len(context), budget)
 
+    def test_reference_excerpt_contains_the_whole_identifier(self):
+        self.write("ops.js", "const db_name = 'archive';\n" + "/" * 6000 + "\nopen(db);")
+        context = build_context(self.root, "Where is db defined?", max_chars=180)
+        self.assertIn("open(db)", context)
+        self.assertNotIn("db_name", context)
+
     def test_context_ties_are_ordered_by_path(self):
         self.write("zeta.py", "shared_keyword = 1\n")
         self.write("alpha.py", "shared_keyword = 2\n")

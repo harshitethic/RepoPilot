@@ -98,7 +98,7 @@ def _context_excerpt(text, path, tokens, budget, evidence=None):
         source_end = _source_offset(text, position + len(token) - 1) + 1
     spare = max(0, budget - (source_end - source_start))
     marker = "..." if spare >= 3 else ""
-    start = max(0, source_start - min(160, spare - len(marker)))
+    start = max(0, source_start - min(160, (spare - len(marker)) // 2))
     if start == 0:
         return prefix
     return marker + text[start:start + budget - len(marker)]
@@ -129,12 +129,20 @@ def build_context(root,q,max_files=8,max_chars=18000):
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
         low=(rel+"\n"+text).casefold()
-        if definition and not exact_symbol.search(low):
-            continue
+        evidence = None
+        if definition:
+            folded = text.casefold()
+            reference = exact_symbol.search(folded)
+            if reference:
+                evidence = (
+                    _source_offset(text, reference.start()),
+                    _source_offset(text, reference.end() - 1) + 1,
+                )
+            elif not exact_symbol.search(rel.casefold()):
+                continue
         early=(rel+"\n"+text[:4000]).casefold()
         matched=2*sum(t in early for t in tokens)+sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
-        evidence = None
         if declaration and p.suffix.lower() == ".py":
             found = declaration.search(text)
             if found:
