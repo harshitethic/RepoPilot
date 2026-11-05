@@ -2,7 +2,7 @@
 from collections import Counter
 from math import log
 
-from .tokenize import distinct_query_terms, tokenize
+from .tokenize import retrieval_query_terms, tokenize
 from .types import Chunk
 
 
@@ -27,7 +27,7 @@ class BM25:
         if not self.total:
             return []
         scores = [0.0] * self.total
-        for term in distinct_query_terms(query):
+        for term in retrieval_query_terms(query):
             df = self.frequency.get(term, 0)
             if not df:
                 continue

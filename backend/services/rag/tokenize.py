@@ -29,3 +29,31 @@ def distinct_query_terms(text: str, maximum: int = 32) -> tuple[str, ...]:
     if maximum < 1:
         raise ValueError("maximum must be positive")
     return tuple(dict.fromkeys(tokenize(text)))[:maximum]
+
+
+# Generic question scaffolding should not count as relevant source evidence.
+# This list deliberately excludes important technical concepts like "auth" or
+# "index", which must still be searchable as a user's primary query.
+_RETRIEVAL_STOP_WORDS = frozenset({
+    "a", "an", "are", "can", "code", "could", "declared", "defined", "did",
+    "do", "does", "find", "for", "from", "function", "how", "i", "in",
+    "implemented", "implementation", "is", "it", "me", "method", "of",
+    "on", "please", "show", "the", "this", "to", "was", "we", "were",
+    "what", "where", "which", "who", "why", "would", "you",
+})
+
+
+def retrieval_query_terms(query: str) -> tuple[str, ...]:
+    """Use salient terms for retrieval, preserving full snake_case symbols.
+
+    In source-code search, a user-supplied identifier is an atomic target:
+    matching an incidental piece of an *unknown* symbol is a false hit.
+    Natural-language questions, however, can match source terms individually.
+    """
+    query = query.strip()
+    if "_" in query and query.isidentifier():
+        return (query.casefold(),)
+    return tuple(
+        term for term in distinct_query_terms(query)
+        if term not in _RETRIEVAL_STOP_WORDS
+    )
