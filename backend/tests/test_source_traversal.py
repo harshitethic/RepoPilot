@@ -1,4 +1,3 @@
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,21 +7,22 @@ from services.github import iter_files
 
 
 class SourceTraversalTests(unittest.TestCase):
-    def test_walk_skips_ignored_subtrees_before_opening_them(self):
+    def test_walk_skips_file_checks_in_ignored_subtrees(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             ignored = root / "src" / "Node_Modules"
             ignored.mkdir(parents=True)
-            (ignored / "vendor.js").touch()
+            dependency = ignored / "vendor.js"
+            dependency.touch()
             source = root / "src" / "app.js"
             source.touch()
-            scanned = []
-            scandir = os.scandir
+            inspected = []
+            is_file = Path.is_file
 
-            def record_scan(path):
-                scanned.append(Path(path))
-                return scandir(path)
+            def track_file_check(path):
+                inspected.append(path)
+                return is_file(path)
 
-            with patch("os.scandir", side_effect=record_scan):
+            with patch.object(Path, "is_file", track_file_check):
                 self.assertEqual(list(iter_files(root)), [source])
-            self.assertNotIn(ignored, scanned)
+            self.assertNotIn(dependency, inspected)
