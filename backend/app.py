@@ -10,6 +10,7 @@ from services.ollama import available,chat
 from api_upload import router as upload_router
 from request_limits import RequestBodyLimitMiddleware
 from work_admission import WorkAdmissionMiddleware
+from services.rag.api import router as rag_router
 logger = logging.getLogger(__name__)
 app=FastAPI(title="RepoPilot API")
 # Insert first so the existing local-peer authorization stays outside this
@@ -44,6 +45,7 @@ async def local_only_by_default(request: Request, call_next):
     return await call_next(request)
 app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:5173","http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
 app.include_router(upload_router)
+app.include_router(rag_router)
 class Analyze(BaseModel): url:str=Field(min_length=10,max_length=500)
 class RepoReq(BaseModel): repo_id:str
 class Ask(RepoReq): question:str=Field(min_length=3,max_length=1200)
