@@ -78,6 +78,8 @@ exists but Ollama is unavailable, it responds with HTTP 503. Sources are
 - Each retrieval response includes at most 20 snippets, with excerpt text
   bounded to 1,800 characters; model context is capped to 12,000 characters.
 - Results can miss synonym-only matches because BM25 is lexical.
+- Generic question words are ignored during ranking; direct snake_case symbol
+  queries are treated atomically to avoid unrelated partial-word matches.
 - Long source lines are capped during chunking; retrieval citations still
   identify the original source lines.
 - Prompt injection in repository content remains a real LLM risk. Evidence
@@ -96,4 +98,5 @@ python -m pip install -r backend/requirements-test.txt
 PYTHONPATH=backend python -m unittest discover -s backend/tests -p 'test_rag*.py' -v
 PYTHONPATH=backend python -m unittest discover -s backend/tests -v
 python examples/rag_demo.py
+python examples/rag_live_http_smoke.py   # localhost HTTP + intentionally stubbed Ollama
 ~~~
