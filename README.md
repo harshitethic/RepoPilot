@@ -94,6 +94,19 @@ PYTHONPATH=backend python -m unittest discover -s backend/tests -p test_http_smo
 
 Windows PowerShell equivalents and what the demo does **not** verify are in the [first-run guide](docs/first-run.md).
 
+## Source-grounded RAG (optional)
+
+RepoPilot also includes a **local BM25-based RAG pipeline**: deterministic source
+chunking, symbol-aware ranking, diversification, and file-and-line citations.
+It works without embeddings or API keys. The new `/api/rag/retrieve` endpoint
+works completely offline; `/api/rag/ask` optionally uses your local Ollama
+model and returns the source references supplied to it. No evidence means no
+model call. See the [RAG guide](docs/rag-retrieval.md) and run
+`python examples/rag_demo.py` for a reproducible offline example.
+
+This is lexical retrieval, not semantic vector search; generated answers
+still need to be checked against the cited files.
+
 ## Architecture
 
 ~~~text
