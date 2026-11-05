@@ -76,6 +76,29 @@ def search_code(root,q,limit=50):
                 if len(out)>=limit:return out
     return out
 
+def _context_excerpt(text, path, tokens, budget):
+    prefix = text[:budget]
+    if not tokens or len(text) <= budget:
+        return prefix
+    visible = (path + "\n" + prefix).casefold()
+    if any(token in visible for token in tokens):
+        return prefix
+
+    folded = text.casefold()
+    matches = [(pos, token) for token in tokens if (pos := folded.find(token)) >= 0]
+    if not matches:
+        return prefix
+    position, token = min(matches)
+    source_start = _source_offset(text, position)
+    source_end = _source_offset(text, position + len(token) - 1) + 1
+    spare = max(0, budget - (source_end - source_start))
+    marker = "..." if spare >= 3 else ""
+    start = max(0, source_start - min(160, spare - len(marker)))
+    if start == 0:
+        return prefix
+    return marker + text[start:start + budget - len(marker)]
+
+
 def build_context(root,q,max_files=8,max_chars=18000):
     if max_files < 1 or max_chars < 1:
         return "No context budget available."
@@ -88,13 +111,8 @@ def build_context(root,q,max_files=8,max_chars=18000):
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
         if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
-    for matched,_,rel,text in ranked:
-        displayed = text[:4000]
-        if matched and not any(t in (rel+"\n"+displayed).casefold() for t in tokens):
-            positions = [text.casefold().find(t) for t in tokens if t in text.casefold()]
-            if positions:
-                start = max(0, _source_offset(text, min(positions)) - 160)
-                displayed = ("..." if start else "") + text[start:start + 3950]
+    for _, _, rel, text in ranked:
+        displayed = _context_excerpt(text, rel, tokens, 4000)
         block=f"\n--- FILE: {rel} ---\n{displayed}\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
@@ -107,5 +125,5 @@ def build_context(root,q,max_files=8,max_chars=18000):
         header = f"\n--- FILE: {rel} ---\n"
         room = max_chars - len(header) - 1
         if room > 0:
-            return header + text[:room] + "\n"
+            return header + _context_excerpt(text, rel, tokens, room) + "\n"
     return "No strongly matching files were found. Say that the supplied context is insufficient."

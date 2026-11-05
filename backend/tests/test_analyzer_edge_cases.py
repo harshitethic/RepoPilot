@@ -70,6 +70,16 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
         self.write("unicode.py", "ß" * 6000 + "Straße_feature")
         self.assertIn("Straße_feature", build_context(self.root, "STRASSE_FEATURE"))
 
+    def test_tight_context_budget_retains_deep_evidence(self):
+        self.write("large.py", "x" * 6000 + "target_symbol" + "y" * 500)
+        header = "\n--- FILE: large.py ---\n"
+        for extra in (0, 2, 3, 100):
+            budget = len(header) + len("target_symbol") + 1 + extra
+            with self.subTest(budget=budget):
+                context = build_context(self.root, "target_symbol", max_chars=budget)
+                self.assertIn("target_symbol", context)
+                self.assertLessEqual(len(context), budget)
+
     def test_context_ties_are_ordered_by_path(self):
         self.write("zeta.py", "shared_keyword = 1\n")
         self.write("alpha.py", "shared_keyword = 2\n")
