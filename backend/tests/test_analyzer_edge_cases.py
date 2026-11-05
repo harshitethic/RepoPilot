@@ -80,6 +80,33 @@ class AnalyzerEdgeCaseTests(unittest.TestCase):
                 self.assertIn("target_symbol", context)
                 self.assertLessEqual(len(context), budget)
 
+    def test_definition_lookup_abstains_on_partial_names_and_question_words(self):
+        self.write("api.py", "# where the methods are defined\ndef recorded_item(): pass")
+        result = build_context(self.root, "Where is the `item()` defined?")
+        self.assertIn("No strongly matching files", result)
+
+    def test_definition_lookup_accepts_short_identifiers(self):
+        self.write("store.py", "class DB: pass")
+        result = build_context(self.root, "Where is db declared?")
+        self.assertIn("class DB", result)
+
+    def test_definition_lookup_prefers_the_declaration_over_imports_and_examples(self):
+        self.write("api.py", "from worker import process_job")
+        self.write("README.md", "def process_job(): ...")
+        self.write("worker.py", "# process_job\n" + "#" * 6000 + "\nasync def process_job(): pass")
+        for budget in (18000, 160):
+            with self.subTest(budget=budget):
+                context = build_context(self.root, "Where is process_job defined?", 1, budget)
+                self.assertIn("--- FILE: worker.py", context)
+                self.assertIn("async def process_job", context)
+                self.assertLessEqual(len(context), budget)
+
+    def test_reference_excerpt_contains_the_whole_identifier(self):
+        self.write("ops.js", "const db_name = 'archive';\n" + "/" * 6000 + "\nopen(db);")
+        context = build_context(self.root, "Where is db defined?", max_chars=180)
+        self.assertIn("open(db)", context)
+        self.assertNotIn("db_name", context)
+
     def test_context_ties_are_ordered_by_path(self):
         self.write("zeta.py", "shared_keyword = 1\n")
         self.write("alpha.py", "shared_keyword = 2\n")

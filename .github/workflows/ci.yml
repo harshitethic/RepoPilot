@@ -35,6 +35,9 @@ jobs:
       - name: Test repository import boundaries
         run: PYTHONPATH=backend python -m unittest discover -s backend/tests -v
 
+      - name: Check catalog retrieval evidence
+        run: PYTHONPATH=backend python examples/evaluate_retrieval.py --check
+
   frontend:
     runs-on: ubuntu-latest
     strategy:

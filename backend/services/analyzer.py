@@ -76,44 +76,91 @@ def search_code(root,q,limit=50):
                 if len(out)>=limit:return out
     return out
 
-def _context_excerpt(text, path, tokens, budget):
+def _context_excerpt(text, path, tokens, budget, evidence=None):
     prefix = text[:budget]
     if not tokens or len(text) <= budget:
         return prefix
-    visible = (path + "\n" + prefix).casefold()
-    if any(token in visible for token in tokens):
-        return prefix
+    if evidence is not None:
+        source_start, source_end = evidence
+        if source_end <= budget:
+            return prefix
+    else:
+        visible = (path + "\n" + prefix).casefold()
+        if any(token in visible for token in tokens):
+            return prefix
 
-    folded = text.casefold()
-    matches = [(pos, token) for token in tokens if (pos := folded.find(token)) >= 0]
-    if not matches:
-        return prefix
-    position, token = min(matches)
-    source_start = _source_offset(text, position)
-    source_end = _source_offset(text, position + len(token) - 1) + 1
+        folded = text.casefold()
+        matches = [(pos, token) for token in tokens if (pos := folded.find(token)) >= 0]
+        if not matches:
+            return prefix
+        position, token = min(matches)
+        source_start = _source_offset(text, position)
+        source_end = _source_offset(text, position + len(token) - 1) + 1
     spare = max(0, budget - (source_end - source_start))
     marker = "..." if spare >= 3 else ""
-    start = max(0, source_start - min(160, spare - len(marker)))
+    start = max(0, source_start - min(160, (spare - len(marker)) // 2))
     if start == 0:
         return prefix
     return marker + text[start:start + budget - len(marker)]
 
 
+_DEFINITION_QUESTION = re.compile(
+    r"where\s+is\s+(?:the\s+)?`?(?P<symbol>[^\W\d]\w*)(?:\(\))?`?"
+    r"\s+(?:defined|declared)\s*\??", re.IGNORECASE,
+)
+
+
 def build_context(root,q,max_files=8,max_chars=18000):
     if max_files < 1 or max_chars < 1:
         return "No context budget available."
-    tokens={x for x in re.findall(r"[\w-]+", q.casefold()) if len(x)>2}; ranked=[]
+    definition = _DEFINITION_QUESTION.fullmatch(q.strip())
+    declaration = None
+    if definition:
+        symbol = definition["symbol"].casefold()
+        tokens = {symbol}
+        exact_symbol = re.compile(rf"\b{re.escape(symbol)}\b")
+        declaration = re.compile(
+            rf"^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+(?P<name>{re.escape(symbol)})\b",
+            re.MULTILINE | re.IGNORECASE,
+        )
+    else:
+        tokens = {x for x in re.findall(r"[\w-]+", q.casefold()) if len(x) > 2}
+    ranked = []
     for p in iter_files(root):
         text=read_text(p); rel=str(p.relative_to(root)).replace("\\","/")
         low=(rel+"\n"+text).casefold()
+        evidence = None
+        if definition:
+            folded = text.casefold()
+            reference = exact_symbol.search(folded)
+            if reference:
+                evidence = (
+                    _source_offset(text, reference.start()),
+                    _source_offset(text, reference.end() - 1) + 1,
+                )
+            elif not exact_symbol.search(rel.casefold()):
+                continue
         early=(rel+"\n"+text[:4000]).casefold()
         matched=2*sum(t in early for t in tokens)+sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
-        if matched or (not q.strip() and bonus): ranked.append((matched,bonus,rel,text))
+        if declaration and p.suffix.lower() == ".py":
+            found = declaration.search(text)
+            if found:
+                # One identifier can score at most three points as a reference.
+                matched += 4
+                evidence = found.span("name")
+        if matched or (not q.strip() and bonus):
+            ranked.append((matched, bonus, rel, text, evidence))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[2].casefold(), x[2])); out=""; used=0; selected=0
-    for _, _, rel, text in ranked:
-        displayed = _context_excerpt(text, rel, tokens, 4000)
-        block=f"\n--- FILE: {rel} ---\n{displayed}\n"
+    for _, _, rel, text, evidence in ranked:
+        header = f"\n--- FILE: {rel} ---\n"
+        budget = 4000
+        if evidence:
+            budget = min(budget, max_chars - used - len(header) - 1)
+            if budget < 1:
+                continue
+        displayed = _context_excerpt(text, rel, tokens, budget, evidence)
+        block = header + displayed + "\n"
         if used+len(block)>max_chars: continue
         out+=block; used+=len(block); selected+=1
         if selected >= max_files:
@@ -121,9 +168,9 @@ def build_context(root,q,max_files=8,max_chars=18000):
     if out:
         return out
     if ranked:
-        _,_,rel,text = ranked[0]
+        _, _, rel, text, evidence = ranked[0]
         header = f"\n--- FILE: {rel} ---\n"
         room = max_chars - len(header) - 1
         if room > 0:
-            return header + _context_excerpt(text, rel, tokens, room) + "\n"
+            return header + _context_excerpt(text, rel, tokens, room, evidence) + "\n"
     return "No strongly matching files were found. Say that the supplied context is insufficient."
