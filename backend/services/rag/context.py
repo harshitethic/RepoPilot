@@ -1,5 +1,5 @@
 """Bounded citation blocks; repository text is always untrusted evidence."""
-from .types import Hit
+from .types import Hit, Chunk
 
 
 def prepare_evidence(hits: list[Hit], *, char_budget: int = 12000) -> tuple[str, list[Hit]]:
@@ -20,9 +20,14 @@ def prepare_evidence(hits: list[Hit], *, char_budget: int = 12000) -> tuple[str,
         if remaining <= len(marker) + len(tail) + 10:
             break
         excerpt = hit.chunk.text[: min(2200, remaining - len(marker) - len(tail))]
+        # A clipped excerpt must not claim lines the model never received.
+        end_line = min(hit.chunk.end_line,
+                       hit.chunk.start_line + excerpt.removesuffix("\n").count("\n"))
+        visible = Hit(Chunk(hit.chunk.path, hit.chunk.start_line, end_line, excerpt), hit.score)
+        marker = f"\nSOURCE [{number}] {visible.chunk.citation}\n"
         block = marker + excerpt + tail
         parts.append(block)
-        included.append(hit)
+        included.append(visible)
         remaining -= len(block)
     return ("".join(parts), included) if included else ("", [])
 
