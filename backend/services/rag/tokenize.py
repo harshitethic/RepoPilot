@@ -52,7 +52,7 @@ def retrieval_query_terms(query: str) -> tuple[str, ...]:
     Natural-language questions, however, can match source terms individually.
     """
     query = unicodedata.normalize("NFC", query).strip()
-    if "_" in query and query.isidentifier():
+    if query.isidentifier() and ("_" in query or _CAMEL.search(query)):
         return (query.casefold(),)
     return tuple(
         term for term in distinct_query_terms(query)
