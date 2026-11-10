@@ -54,7 +54,8 @@ def retrieval_query_terms(query: str) -> tuple[str, ...]:
     query = unicodedata.normalize("NFC", query).strip()
     if query.isidentifier() and ("_" in query or _CAMEL.search(query)):
         return (query.casefold(),)
-    return tuple(
-        term for term in distinct_query_terms(query)
+    # Filter scaffolding before applying the meaningful-term budget.
+    return tuple(dict.fromkeys(
+        term for term in tokenize(query)
         if term not in _RETRIEVAL_STOP_WORDS
-    )
+    ))[:32]
