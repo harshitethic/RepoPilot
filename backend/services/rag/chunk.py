@@ -2,6 +2,7 @@
 from collections.abc import Iterator
 
 from .types import Chunk
+from services.source_text import source_lines
 
 
 def chunk_source(
@@ -16,7 +17,7 @@ def chunk_source(
         raise ValueError("Invalid chunk size or overlap")
     if max_line_chars < 1:
         raise ValueError("max_line_chars must be positive")
-    lines = text.splitlines()
+    lines = source_lines(text)
     if not lines:
         return
     stride = lines_per_chunk - overlap_lines
