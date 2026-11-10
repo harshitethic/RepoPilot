@@ -20,7 +20,13 @@ def select_diverse(hits: list[Hit], *, limit: int, relevance_weight: float = 0.7
         raise ValueError("Invalid diversity settings")
     if not hits:
         return []
-    candidates = list(hits)
+    # Repeated corpus entries must not consume separate citation slots.
+    unique = {}
+    for hit in hits:
+        key = (hit.chunk.path, hit.chunk.start_line, hit.chunk.end_line, hit.chunk.text)
+        if key not in unique or hit.score > unique[key].score:
+            unique[key] = hit
+    candidates = list(unique.values())
     selected: list[Hit] = []
     normalizer = max(h.score for h in candidates) or 1.0
     while candidates and len(selected) < limit:

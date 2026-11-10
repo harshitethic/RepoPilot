@@ -150,3 +150,17 @@ Reproducible bug reports, onboarding feedback and focused tests are welcome. See
 ## License
 
 [MIT](LICENSE) © 2026 Harshit Sharma.
+
+### Retrieval correctness notes
+
+Lexical retrieval considers paths as well as source text, normalizes canonical
+Unicode forms, and keeps a standalone snake_case or camelCase identifier
+atomic. Unknown compound symbols therefore do not become hits merely because
+a source contains one component word. Natural-language stop words are removed
+before the 32-term budget is applied.
+
+Case-distinct filename ties have deterministic ordering. Source citations use
+physical CR/LF lines, not Unicode paragraph separators inside strings. Model
+responses list only source excerpts actually supplied within the evidence
+budget, with line ranges reduced when an excerpt is clipped. These controls
+improve provenance; they do not guarantee the model's claims are correct.
