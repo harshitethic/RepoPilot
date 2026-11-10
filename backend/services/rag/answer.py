@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from services.ollama import chat
 
-from .context import format_evidence, references
+from .context import prepare_evidence, references
 from .service import retrieve
 
 
@@ -16,8 +16,8 @@ def answer_question(
     model_chat: Callable[[str], str] | None = None,
 ) -> dict:
     hits = retrieve(root, question, limit=limit)
-    refs = references(hits)
-    evidence = format_evidence(hits)
+    evidence, included = prepare_evidence(hits)
+    refs = references(included)
     if not evidence:
         return {
             "answer": "No relevant source evidence found. I cannot answer from this repository.",
