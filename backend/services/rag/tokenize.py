@@ -1,5 +1,6 @@
 """Dependency-free, Unicode-aware source and query tokenization."""
 import re
+import unicodedata
 
 _IDENTIFIER = re.compile(r"(?u)[^\W_]+(?:_[^\W_]+)*")
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
@@ -12,7 +13,7 @@ def tokenize(text: str) -> tuple[str, ...]:
     supports Unicode identifiers without relying on locale configuration.
     """
     words: list[str] = []
-    for match in _IDENTIFIER.finditer(text):
+    for match in _IDENTIFIER.finditer(unicodedata.normalize("NFC", text)):
         raw = match.group()
         full = raw.casefold()
         words.append(full)
@@ -50,7 +51,7 @@ def retrieval_query_terms(query: str) -> tuple[str, ...]:
     matching an incidental piece of an *unknown* symbol is a false hit.
     Natural-language questions, however, can match source terms individually.
     """
-    query = query.strip()
+    query = unicodedata.normalize("NFC", query).strip()
     if "_" in query and query.isidentifier():
         return (query.casefold(),)
     return tuple(
