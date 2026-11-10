@@ -20,7 +20,11 @@ class Hit:
     score: float
 
     def public(self, max_excerpt: int = 1800) -> dict:
+        if type(max_excerpt) is not int or max_excerpt < 0:
+            raise ValueError("max_excerpt must be a non-negative integer")
         text = self.chunk.text
+        if max_excerpt == 0:
+            text = ""
         if len(text) > max_excerpt:
             text = text[: max_excerpt - 1] + "…"
         return {
