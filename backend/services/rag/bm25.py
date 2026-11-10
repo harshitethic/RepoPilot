@@ -1,6 +1,6 @@
 """Pure-Python BM25 relevance scoring for source chunks."""
 from collections import Counter
-from math import log
+from math import log, isfinite
 
 from .tokenize import retrieval_query_terms, tokenize
 from .types import Chunk
@@ -8,7 +8,7 @@ from .types import Chunk
 
 class BM25:
     def __init__(self, chunks: list[Chunk], *, k1: float = 1.2, b: float = 0.75):
-        if k1 <= 0 or not 0 <= b <= 1:
+        if not isfinite(k1) or not isfinite(b) or k1 <= 0 or not 0 <= b <= 1:
             raise ValueError("Invalid BM25 parameters")
         self.lengths: list[int] = []
         self.counts: list[Counter[str]] = []
@@ -16,7 +16,7 @@ class BM25:
         self.k1 = k1
         self.b = b
         for chunk in chunks:
-            count = Counter(tokenize(chunk.text))
+            count = Counter(tokenize(chunk.path + "\n" + chunk.text))
             self.counts.append(count)
             self.lengths.append(sum(count.values()))
             self.frequency.update(count.keys())

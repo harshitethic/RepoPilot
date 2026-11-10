@@ -1,4 +1,5 @@
 from collections import Counter
+from .source_text import source_lines
 import re
 from pathlib import Path
 from .github import iter_files, read_text
@@ -8,7 +9,7 @@ def analyze(root):
     entries=[]; langs=Counter(); lines=0; bytes_=0
     for p in iter_files(root):
         rel=str(p.relative_to(root)).replace("\\","/")
-        text=read_text(p); n=len(text.splitlines())
+        text=read_text(p); n=len(source_lines(text))
         lines+=n; bytes_+=p.stat().st_size; lang=LANG.get(p.suffix.lower(),"Other"); langs[lang]+=1
         entries.append({"path":rel,"size":p.stat().st_size,"lines":n,"language":lang})
     paths={e["path"].lower() for e in entries}; names={Path(e["path"]).name.lower() for e in entries}
@@ -70,7 +71,7 @@ def search_code(root,q,limit=50):
     q=q.casefold().strip(); out=[]
     if not q or limit < 1: return []
     for p in sorted(iter_files(root), key=lambda item: item.relative_to(root).as_posix().casefold()):
-        for i,line in enumerate(read_text(p).splitlines(),1):
+        for i,line in enumerate(source_lines(read_text(p)),1):
             if q in line.casefold():
                 out.append({"path":str(p.relative_to(root)).replace("\\","/"),"line":i,"text":_search_excerpt(line,q)})
                 if len(out)>=limit:return out
