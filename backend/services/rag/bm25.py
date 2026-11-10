@@ -16,7 +16,7 @@ class BM25:
         self.k1 = k1
         self.b = b
         for chunk in chunks:
-            count = Counter(tokenize(chunk.text))
+            count = Counter(tokenize(chunk.path + "\n" + chunk.text))
             self.counts.append(count)
             self.lengths.append(sum(count.values()))
             self.frequency.update(count.keys())
