@@ -26,7 +26,7 @@ def rank_chunks(chunks: list[Chunk], query: str, *, limit: int = 8) -> list[Hit]
         candidates.append(Hit(chunk, score + lexical_boost(chunk, query)))
     candidates.sort(
         key=lambda hit: (
-            -hit.score, hit.chunk.path.casefold(),
+            -hit.score, hit.chunk.path.casefold(), hit.chunk.path,
             hit.chunk.start_line,
         )
     )
