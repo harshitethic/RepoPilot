@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 12
     steps:
       - name: Checkout consumer repository without retaining credentials
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -32,7 +32,7 @@ jobs:
           output: ${{ runner.temp }}/clonepeek-repopilot.json
 
       - name: Checkout official Cursor cookbook hook config at immutable revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: cursor/cookbook
           ref: 6733ef81a7dc3cb2a6c1f524ff586ebecc703204
@@ -43,7 +43,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Checkout YappChat VS Code tasks at immutable revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Cowboy-59/YappChat
           ref: 6e704eb3208926d61e4d045a2a013818613b8ce4
