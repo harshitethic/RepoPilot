@@ -3,28 +3,32 @@ import re
 import unicodedata
 
 def _identifiers(text: str):
-    """Yield symbols, keeping Unicode combining marks with their base text.
+    """Yield complete identifier runs, including Unicode marks and underscores.
 
-    Python's re word class excludes combining marks used in scripts such as
-    Arabic and Devanagari, even where the resulting text is an identifier.
-    Underscores connect only two non-empty symbol components.
+    Python's regex word class excludes combining marks. Valid source symbols
+    can also begin or end with underscores (for example, __init__ or _private).
+    Keep those full names so atomic identifier queries find them.
     """
     index = 0
     while index < len(text):
-        if not text[index].isalnum():
+        if not (text[index].isalnum() or text[index] == "_"):
             index += 1
             continue
         start = index
-        index += 1
+        seen_base = False
         while index < len(text):
             char = text[index]
-            if char.isalnum() or unicodedata.category(char).startswith("M"):
+            if char.isalnum():
+                seen_base = True
                 index += 1
-            elif char == "_" and index + 1 < len(text) and text[index + 1].isalnum():
+            elif char == "_" or (
+                seen_base and unicodedata.category(char).startswith("M")
+            ):
                 index += 1
             else:
                 break
         yield text[start:index]
+
 
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
@@ -42,7 +46,7 @@ def tokenize(text: str) -> tuple[str, ...]:
         parts = []
         for segment in raw.split("_"):
             parts.extend(part.casefold() for part in _CAMEL.split(segment) if part)
-        if len(parts) > 1:
+        if len(parts) > 1 or (parts and parts[0] != full):
             words.extend(parts)
     return tuple(words)
 
