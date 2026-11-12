@@ -2,7 +2,30 @@
 import re
 import unicodedata
 
-_IDENTIFIER = re.compile(r"(?u)[^\W_]+(?:_[^\W_]+)*")
+def _identifiers(text: str):
+    """Yield symbols, keeping Unicode combining marks with their base text.
+
+    Python's re word class excludes combining marks used in scripts such as
+    Arabic and Devanagari, even where the resulting text is an identifier.
+    Underscores connect only two non-empty symbol components.
+    """
+    index = 0
+    while index < len(text):
+        if not text[index].isalnum():
+            index += 1
+            continue
+        start = index
+        index += 1
+        while index < len(text):
+            char = text[index]
+            if char.isalnum() or unicodedata.category(char).startswith("M"):
+                index += 1
+            elif char == "_" and index + 1 < len(text) and text[index + 1].isalnum():
+                index += 1
+            else:
+                break
+        yield text[start:index]
+
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 
@@ -13,8 +36,7 @@ def tokenize(text: str) -> tuple[str, ...]:
     supports Unicode identifiers without relying on locale configuration.
     """
     words: list[str] = []
-    for match in _IDENTIFIER.finditer(unicodedata.normalize("NFC", text)):
-        raw = match.group()
+    for raw in _identifiers(unicodedata.normalize("NFC", text)):
         full = raw.casefold()
         words.append(full)
         parts = []
