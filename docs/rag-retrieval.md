@@ -80,6 +80,8 @@ exists but Ollama is unavailable, it responds with HTTP 503. Sources are
 - Results can miss synonym-only matches because BM25 is lexical.
 - Generic question words are ignored during ranking; direct snake_case symbol
   queries are treated atomically to avoid unrelated partial-word matches.
+- Leading, trailing and repeated underscores are retained in source symbols, so
+  Python names such as `__init__` or `_private` can be queried exactly.
 - Long source lines are capped during chunking; retrieval citations still
   identify the original source lines.
 - Prompt injection in repository content remains a real LLM risk. Evidence
