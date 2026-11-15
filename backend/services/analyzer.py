@@ -3,7 +3,7 @@ from .source_text import source_lines
 import re
 from pathlib import Path
 from .github import iter_files, read_text
-LANG={".py":"Python",".js":"JavaScript",".jsx":"JavaScript",".ts":"TypeScript",".tsx":"TypeScript",".java":"Java",".go":"Go",".rs":"Rust",".cpp":"C++",".c":"C",".cs":"C#",".php":"PHP",".rb":"Ruby",".swift":"Swift",".kt":"Kotlin",".sql":"SQL",".html":"HTML",".css":"CSS",".scss":"SCSS",".json":"JSON",".yaml":"YAML",".yml":"YAML",".md":"Markdown",".sh":"Shell",".ps1":"PowerShell"}
+LANG={".py":"Python",".js":"JavaScript",".jsx":"JavaScript",".mjs":"JavaScript",".cjs":"JavaScript",".ts":"TypeScript",".tsx":"TypeScript",".mts":"TypeScript",".cts":"TypeScript",".java":"Java",".go":"Go",".rs":"Rust",".cpp":"C++",".c":"C",".cs":"C#",".php":"PHP",".rb":"Ruby",".swift":"Swift",".kt":"Kotlin",".sql":"SQL",".html":"HTML",".css":"CSS",".scss":"SCSS",".json":"JSON",".yaml":"YAML",".yml":"YAML",".md":"Markdown",".sh":"Shell",".ps1":"PowerShell"}
 
 def analyze(root):
     entries=[]; langs=Counter(); lines=0; bytes_=0
@@ -18,7 +18,7 @@ def analyze(root):
       "tests":any(
           any(part in {"test", "tests", "__tests__"} for part in p.split("/")[:-1])
           or Path(p).name.startswith(("test_", "test."))
-          or Path(p).name.endswith(("_test.py", "_test.go", ".test.js", ".spec.js", ".test.ts", ".spec.ts", ".test.tsx", ".spec.tsx"))
+          or Path(p).name.endswith(("_test.py", "_test.go", ".test.js", ".spec.js", ".test.jsx", ".spec.jsx", ".test.mjs", ".spec.mjs", ".test.cjs", ".spec.cjs", ".test.ts", ".spec.ts", ".test.tsx", ".spec.tsx", ".test.mts", ".spec.mts", ".test.cts", ".spec.cts"))
           for p in paths
       ),
       "gitignore":".gitignore" in names,
