@@ -124,6 +124,12 @@ def build_context(root,q,max_files=8,max_chars=18000):
             rf"^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+(?P<name>{re.escape(symbol)})\b",
             re.MULTILINE | re.IGNORECASE,
         )
+        js_declaration = re.compile(
+            rf"^[ \t]*(?:(?:export|default|declare|async)[ \t]+)*"
+            rf"(?:function|class|interface|type|enum|const|let|var)[ \t]+"
+            rf"(?P<name>{re.escape(symbol)})\b",
+            re.MULTILINE | re.IGNORECASE,
+        )
     else:
         tokens = {x for x in re.findall(r"[\w-]+", q.casefold()) if len(x) > 2}
     ranked = []
@@ -144,10 +150,17 @@ def build_context(root,q,max_files=8,max_chars=18000):
         early=(rel+"\n"+text[:4000]).casefold()
         matched=2*sum(t in early for t in tokens)+sum(t in low for t in tokens)
         bonus=sum(k in rel.casefold() for k in ["readme","app.","main.","index.","route","api"])
-        if declaration and p.suffix.lower() == ".py":
-            found = declaration.search(text)
+        if definition:
+            suffix = p.suffix.lower()
+            source_declaration = (
+                declaration if suffix == ".py"
+                else js_declaration if suffix in {
+                    ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"
+                } else None
+            )
+            found = source_declaration.search(text) if source_declaration else None
             if found:
-                # One identifier can score at most three points as a reference.
+                # Prefer real declarations over imports, docs and call sites.
                 matched += 4
                 evidence = found.span("name")
         if matched or (not q.strip() and bonus):
